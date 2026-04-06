@@ -1,0 +1,6 @@
+__pycache__
+legacy
+.vscode
+temp_test.py
+log_sdr
+log/*
