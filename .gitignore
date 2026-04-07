@@ -4,3 +4,5 @@ legacy
 temp_test.py
 log_sdr
 log/*
+*.log
+*.iq

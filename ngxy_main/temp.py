@@ -40,7 +40,7 @@ class DecodeKey:
         self.timeout = timeout # 解析失败转换等级的时间阈值
         self.verify_key_times = verify_key_times # 验证秘钥的次数
         self.decoder = frame_decoder(
-            "key",
+            "signal",
             zmq_address=ADDR_GNURADIO,
             on_frame_decoded=self._handle_frame_decoded
         )

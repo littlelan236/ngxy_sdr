@@ -253,7 +253,7 @@ def dict_to_dataclass(data_dict)-> BaseStatus | None:
                 attack_buff=data_dict["sentry_attack_boost"],
             )
         )
-    elif "key":
+    elif "key" in data_dict:
         return EnemyPasswordStatus(password=data_dict["key"])
     else:
         return None

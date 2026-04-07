@@ -14,7 +14,6 @@ from gnuradio import qtgui
 from gnuradio import analog
 import math
 from gnuradio import blocks
-import pmt
 from gnuradio import digital
 from gnuradio import filter
 from gnuradio.filter import firdes
@@ -26,6 +25,7 @@ from PyQt5 import Qt
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
+from gnuradio import iio
 from gnuradio import zeromq
 import final_with_gui_epy_block_0_0 as epy_block_0_0  # embedded python block
 import sip
@@ -74,7 +74,7 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.taps_lpf = taps_lpf = firdes.low_pass(1.0, samp_rate, 19230, 2000)
         self.signal_bandwidth = signal_bandwidth = 240600
         self.gain = gain = 1 / 1.5
-        self.fc = fc = 433200000
+        self.fc = fc = 432200000
 
         ##################################################
         # Blocks
@@ -270,6 +270,16 @@ class final_with_gui(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.2' if '192.168.2.2' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0.set_len_tag_key('packet_len')
+        self.iio_pluto_source_0.set_frequency(fc)
+        self.iio_pluto_source_0.set_samplerate(samp_rate)
+        self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
+        self.iio_pluto_source_0.set_gain(0, 64)
+        self.iio_pluto_source_0.set_quadrature(True)
+        self.iio_pluto_source_0.set_rfdc(True)
+        self.iio_pluto_source_0.set_bbdc(True)
+        self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
         self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
         self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
         self.fft_filter_xxx_1_0 = filter.fft_filter_fff(1, taps_lpf, 1)
@@ -290,8 +300,6 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\ngxy_sdr_3\\log\\raw_2026-04-06_16-05-32.iq', True, 0, 0)
-        self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
         self.analog_quadrature_demod_cf_0_0 = analog.quadrature_demod_cf(gain)
         self.analog_quadrature_demod_cf_0 = analog.quadrature_demod_cf(gain)
 
@@ -302,7 +310,6 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.fft_filter_xxx_1_0, 0))
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.qtgui_time_sink_x_0_0, 1))
         self.connect((self.analog_quadrature_demod_cf_0_0, 0), (self.qtgui_time_sink_x_0_0, 0))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_throttle2_0, 0))
         self.connect((self.blocks_float_to_char_0, 0), (self.blocks_pack_k_bits_bb_0_0_1, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0_1, 0), (self.zeromq_pub_sink_0_0, 0))
         self.connect((self.blocks_throttle2_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
@@ -316,6 +323,7 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.connect((self.fft_filter_xxx_1_0, 0), (self.qtgui_time_sink_x_0_0, 2))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.analog_quadrature_demod_cf_0, 0))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.qtgui_freq_sink_x_0, 1))
+        self.connect((self.iio_pluto_source_0, 0), (self.blocks_throttle2_0, 0))
 
 
     def closeEvent(self, event):
@@ -334,6 +342,7 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
         self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
         self.blocks_throttle2_0.set_sample_rate(self.samp_rate)
+        self.iio_pluto_source_0.set_samplerate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0.set_samp_rate(self.samp_rate)
@@ -372,6 +381,7 @@ class final_with_gui(gr.top_block, Qt.QWidget):
 
     def set_fc(self, fc):
         self.fc = fc
+        self.iio_pluto_source_0.set_frequency(self.fc)
 
 
 
