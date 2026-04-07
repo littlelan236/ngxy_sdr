@@ -14,7 +14,6 @@ from gnuradio import qtgui
 from gnuradio import analog
 import math
 from gnuradio import blocks
-import pmt
 from gnuradio import digital
 from gnuradio import filter
 from gnuradio.filter import firdes
@@ -92,7 +91,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         ##################################################
 
         self.zeromq_sub_source_0 = zeromq.sub_source(gr.sizeof_char, 1, 'tcp://127.0.0.1:2235', 100, False, (-1), '', False)
-        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2236', 100, False, (-1), '', True, True)
+        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2234', 100, False, (-1), '', True, True)
         self.qtgui_time_sink_x_0_0_0_1_0 = qtgui.time_sink_f(
             1024, #size
             samp_rate, #samp_rate
@@ -141,6 +140,54 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_0_0_1_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0_0_0_1_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_0_0_1_0_win)
+        self.qtgui_time_sink_x_0_0_0_0_0 = qtgui.time_sink_f(
+            1024, #size
+            samp_rate, #samp_rate
+            'tx_data', #name
+            1, #number of inputs
+            None # parent
+        )
+        self.qtgui_time_sink_x_0_0_0_0_0.set_update_time(0.10)
+        self.qtgui_time_sink_x_0_0_0_0_0.set_y_axis(-1, 1)
+
+        self.qtgui_time_sink_x_0_0_0_0_0.set_y_label('Amplitude', "")
+
+        self.qtgui_time_sink_x_0_0_0_0_0.enable_tags(True)
+        self.qtgui_time_sink_x_0_0_0_0_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, qtgui.TRIG_SLOPE_POS, 0.0, 0, 0, "")
+        self.qtgui_time_sink_x_0_0_0_0_0.enable_autoscale(True)
+        self.qtgui_time_sink_x_0_0_0_0_0.enable_grid(False)
+        self.qtgui_time_sink_x_0_0_0_0_0.enable_axis_labels(True)
+        self.qtgui_time_sink_x_0_0_0_0_0.enable_control_panel(True)
+        self.qtgui_time_sink_x_0_0_0_0_0.enable_stem_plot(False)
+
+
+        labels = ['Signal 1', 'Signal 2', 'Signal 3', 'Signal 4', 'Signal 5',
+            'Signal 6', 'Signal 7', 'Signal 8', 'Signal 9', 'Signal 10']
+        widths = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+        colors = ['blue', 'red', 'green', 'black', 'cyan',
+            'magenta', 'yellow', 'dark red', 'dark green', 'dark blue']
+        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0]
+        styles = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+        markers = [-1, -1, -1, -1, -1,
+            -1, -1, -1, -1, -1]
+
+
+        for i in range(1):
+            if len(labels[i]) == 0:
+                self.qtgui_time_sink_x_0_0_0_0_0.set_line_label(i, "Data {0}".format(i))
+            else:
+                self.qtgui_time_sink_x_0_0_0_0_0.set_line_label(i, labels[i])
+            self.qtgui_time_sink_x_0_0_0_0_0.set_line_width(i, widths[i])
+            self.qtgui_time_sink_x_0_0_0_0_0.set_line_color(i, colors[i])
+            self.qtgui_time_sink_x_0_0_0_0_0.set_line_style(i, styles[i])
+            self.qtgui_time_sink_x_0_0_0_0_0.set_line_marker(i, markers[i])
+            self.qtgui_time_sink_x_0_0_0_0_0.set_line_alpha(i, alphas[i])
+
+        self._qtgui_time_sink_x_0_0_0_0_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0_0_0_0_0.qwidget(), Qt.QWidget)
+        self.top_layout.addWidget(self._qtgui_time_sink_x_0_0_0_0_0_win)
         self.qtgui_time_sink_x_0_0_0_0 = qtgui.time_sink_f(
             1024, #size
             samp_rate, #samp_rate
@@ -189,54 +236,6 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_0_0_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0_0_0_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_0_0_0_win)
-        self.qtgui_time_sink_x_0_0 = qtgui.time_sink_f(
-            1024, #size
-            samp_rate, #samp_rate
-            'tx', #name
-            2, #number of inputs
-            None # parent
-        )
-        self.qtgui_time_sink_x_0_0.set_update_time(0.10)
-        self.qtgui_time_sink_x_0_0.set_y_axis(-1, 1)
-
-        self.qtgui_time_sink_x_0_0.set_y_label('Amplitude', "")
-
-        self.qtgui_time_sink_x_0_0.enable_tags(True)
-        self.qtgui_time_sink_x_0_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, qtgui.TRIG_SLOPE_POS, 0.0, 0, 0, "")
-        self.qtgui_time_sink_x_0_0.enable_autoscale(False)
-        self.qtgui_time_sink_x_0_0.enable_grid(False)
-        self.qtgui_time_sink_x_0_0.enable_axis_labels(True)
-        self.qtgui_time_sink_x_0_0.enable_control_panel(True)
-        self.qtgui_time_sink_x_0_0.enable_stem_plot(False)
-
-
-        labels = ['Signal 1', 'Signal 2', 'Signal 3', 'Signal 4', 'Signal 5',
-            'Signal 6', 'Signal 7', 'Signal 8', 'Signal 9', 'Signal 10']
-        widths = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        colors = ['blue', 'red', 'green', 'black', 'cyan',
-            'magenta', 'yellow', 'dark red', 'dark green', 'dark blue']
-        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.0, 1.0, 1.0]
-        styles = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        markers = [-1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1]
-
-
-        for i in range(2):
-            if len(labels[i]) == 0:
-                self.qtgui_time_sink_x_0_0.set_line_label(i, "Data {0}".format(i))
-            else:
-                self.qtgui_time_sink_x_0_0.set_line_label(i, labels[i])
-            self.qtgui_time_sink_x_0_0.set_line_width(i, widths[i])
-            self.qtgui_time_sink_x_0_0.set_line_color(i, colors[i])
-            self.qtgui_time_sink_x_0_0.set_line_style(i, styles[i])
-            self.qtgui_time_sink_x_0_0.set_line_marker(i, markers[i])
-            self.qtgui_time_sink_x_0_0.set_line_alpha(i, alphas[i])
-
-        self._qtgui_time_sink_x_0_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0_0.qwidget(), Qt.QWidget)
-        self.top_layout.addWidget(self._qtgui_time_sink_x_0_0_win)
         self.qtgui_time_sink_x_0 = qtgui.time_sink_f(
             1024, #size
             samp_rate, #samp_rate
@@ -327,7 +326,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.2' if '192.168.2.2' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.1' if '192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc_blue)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
@@ -337,19 +336,12 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0_0_0 = iio.fmcomms2_sink_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 32768, True)
-        self.iio_pluto_sink_0_0_0.set_len_tag_key('')
-        self.iio_pluto_sink_0_0_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0_0_0.set_frequency(fc_blue_1)
-        self.iio_pluto_sink_0_0_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0_0_0.set_attenuation(0, 0)
-        self.iio_pluto_sink_0_0_0.set_filter_params('Auto', '', 0, 0)
         self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.1' if '192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
         self.iio_pluto_sink_0.set_frequency(fc_blue)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 47)
+        self.iio_pluto_sink_0.set_attenuation(0, 60)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
         self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
         self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
@@ -368,13 +360,6 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
             digital.IR_MMSE_8TAP,
             128,
             [])
-        self.digital_gfsk_mod_0_0 = digital.gfsk_mod(
-            samples_per_symbol=52,
-            sensitivity=sensitivity_inf_1,
-            bt=0.35,
-            verbose=False,
-            log=False,
-            do_unpack=True)
         self.digital_gfsk_mod_0 = digital.gfsk_mod(
             samples_per_symbol=52,
             sensitivity=sensitivity_signal,
@@ -383,13 +368,9 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
             log=False,
             do_unpack=True)
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
-        self.blocks_pack_k_bits_bb_0_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_pack_k_bits_bb_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_char*1, 'C:\\Users\\wangt\\Desktop\\ngxy_sdr_3\\gnuradio\\interfere_bitstream', True, 0, 0)
-        self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
-        self.blocks_char_to_float_0_0_0 = blocks.char_to_float(1, 1)
-        self.blocks_char_to_float_0_0 = blocks.char_to_float(1, 1)
+        self.blocks_char_to_float_0 = blocks.char_to_float(1, 1)
         self.analog_quadrature_demod_cf_0_0 = analog.quadrature_demod_cf((1 / 1.5))
         self.analog_quadrature_demod_cf_0 = analog.quadrature_demod_cf((1 / 1.5))
 
@@ -400,17 +381,11 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.fft_filter_xxx_1_0, 0))
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 1))
         self.connect((self.analog_quadrature_demod_cf_0_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 0))
-        self.connect((self.blocks_char_to_float_0_0, 0), (self.qtgui_time_sink_x_0_0, 0))
-        self.connect((self.blocks_char_to_float_0_0_0, 0), (self.qtgui_time_sink_x_0_0, 1))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_char_to_float_0_0_0, 0))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_pack_k_bits_bb_0_0_0, 0))
+        self.connect((self.blocks_char_to_float_0, 0), (self.qtgui_time_sink_x_0_0_0_0_0, 0))
         self.connect((self.blocks_float_to_char_0, 0), (self.blocks_pack_k_bits_bb_0_0_1, 0))
-        self.connect((self.blocks_pack_k_bits_bb_0_0, 0), (self.blocks_char_to_float_0_0, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0, 0), (self.digital_gfsk_mod_0, 0))
-        self.connect((self.blocks_pack_k_bits_bb_0_0_0, 0), (self.digital_gfsk_mod_0_0, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0_1, 0), (self.zeromq_pub_sink_0_0, 0))
         self.connect((self.digital_gfsk_mod_0, 0), (self.iio_pluto_sink_0, 0))
-        self.connect((self.digital_gfsk_mod_0_0, 0), (self.iio_pluto_sink_0_0_0, 0))
         self.connect((self.digital_symbol_sync_xx_0, 0), (self.epy_block_0_0, 0))
         self.connect((self.digital_symbol_sync_xx_0, 0), (self.qtgui_time_sink_x_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.blocks_float_to_char_0, 0))
@@ -422,6 +397,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         self.connect((self.iio_pluto_source_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
         self.connect((self.iio_pluto_source_0, 0), (self.fft_filter_xxx_1_0_0, 0))
         self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
+        self.connect((self.zeromq_sub_source_0, 0), (self.blocks_char_to_float_0, 0))
         self.connect((self.zeromq_sub_source_0, 0), (self.blocks_pack_k_bits_bb_0_0, 0))
 
 
@@ -441,12 +417,11 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
         self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
         self.iio_pluto_sink_0.set_samplerate(self.samp_rate)
-        self.iio_pluto_sink_0_0_0.set_samplerate(self.samp_rate)
         self.iio_pluto_source_0.set_samplerate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
-        self.qtgui_time_sink_x_0_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0_0_0.set_samp_rate(self.samp_rate)
+        self.qtgui_time_sink_x_0_0_0_0_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0_0_1_0.set_samp_rate(self.samp_rate)
 
     def get_taps_lpf_pre(self):
@@ -469,7 +444,6 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
     def set_signal_bandwidth(self, signal_bandwidth):
         self.signal_bandwidth = signal_bandwidth
         self.iio_pluto_sink_0.set_bandwidth(self.signal_bandwidth)
-        self.iio_pluto_sink_0_0_0.set_bandwidth(self.signal_bandwidth)
 
     def get_sensitivity_signal(self):
         return self.sensitivity_signal
@@ -512,7 +486,6 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
     def set_fc_blue_1(self, fc_blue_1):
         self.fc_blue_1 = fc_blue_1
-        self.iio_pluto_sink_0_0_0.set_frequency(self.fc_blue_1)
 
     def get_fc_blue(self):
         return self.fc_blue

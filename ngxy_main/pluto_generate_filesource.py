@@ -3,10 +3,10 @@
 if __name__ == "__main__":
 
     from frame_coder import build_frame_ota_jamming, build_frame_ota_signal
-    from zmq_server import  zmq_server_tx
+    from zmq_server import  zmqServerTx
     import numpy as np
 
-    server_tx = zmq_server_tx() # port 2235
+    server_tx = zmqServerTx() # port 2235
 
     # 生成空口帧的比特流
     frames = build_frame_ota_jamming("RM2026")

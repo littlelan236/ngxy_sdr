@@ -13,13 +13,16 @@ from enum import Enum
 from frame_decoder import frame_decoder
 from final_no_gui import GnuradioClass
 from signal_def import *
+from zmq_server import zmqServerTx
+from status_def import *
 
 import logging
 from datetime import datetime
 
-DEFAULT_ADDR = "tcp://127.0.0.1:2234" # gnuradio发送解析结果的地址
+ADDR_REPORT = "tcp://127.0.0.1:2237" # 上报地址
+ADDR_PLUTO = '192.168.2.1' # pluto地址
+ADDR_GNURADIO = "tcp://127.0.0.1:2234" # gnuradio发送解析结果的地址
 TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-IQ_FILE_SAVE_PATH =f"./log/raw_{TIME_STR}.iq" # 保存IQ数据的文件路径
 LOG_FILE_PATH = f"./log/log_sdr_{TIME_STR}.log"
 ERROR_SLEEP_TIME = 5 # 运行gnuradio发生异常时的休眠时间
 
@@ -29,17 +32,21 @@ class InfLevel(Enum):
     INF3 = 2
 
 class DecodeKey:
-    def __init__(self, site:TargetSite, polling_interval=1, timeout=5):
+    def __init__(self, site:TargetSite, polling_interval=1, timeout=5, verify_key_times=3):
         self.target_site = site
         self.inf_level = InfLevel.INF1
         self.last_decode_time = 0 # 标记上次成功解析出秘钥的时间 0表示初始状态
         self.polling_interval = polling_interval # 轮询解析成功状态间隔
         self.timeout = timeout # 解析失败转换等级的时间阈值
+        self.verify_key_times = verify_key_times # 验证秘钥的次数
         self.decoder = frame_decoder(
             "signal",
-            zmq_address=DEFAULT_ADDR,
+            zmq_address=ADDR_GNURADIO,
             on_frame_decoded=self._handle_frame_decoded
         )
+        self.decoded_keys = [] # 存储解析出的秘钥列表
+        self.verified_keys = [] # 存储已验证的秘钥列表(多次解析出同一秘钥视为验证通过)
+        self.zmq_tx = zmqServerTx(ADDR_REPORT) # 用于传递最终的信息
 
     def _update_level(self):
         """转变干扰波等级"""
@@ -54,10 +61,41 @@ class DecodeKey:
             # 输出解析结果
             logging.log(logging.INFO, f"[DecodeKey] 解析成功: {data_dict}")
 
+            # 提交解析结果
+            report_data = dict_to_dataclass(data_dict)
+            if report_data is not None:
+                self.zmq_tx.send_data(report_data)
+            
+            try:
+                key = data_dict["key"]
+            except KeyError:
+                logging.log(logging.WARNING, f"[DecodeKey] 解析出的数据中没有找到秘钥: {data_dict}")
+                continue
+
+            # 将解析出的秘钥添加到列表中
+            # 验证秘钥是否有效
+            # 检查是否已验证过该秘钥
+            if key in self.verified_keys:
+                logging.log(logging.DEBUG, f"[DecodeKey] 秘钥已验证，跳过: {key}")
+                continue
+
+            self.decoded_keys.append(key)
+
+            # 检查decoded_keys中该秘钥出现的次数
+            key_count = self.decoded_keys.count(key)
+            if key_count >= self.verify_key_times:
+                # 将秘钥加入已验证列表
+                self.verified_keys.append(key)
+                logging.log(logging.INFO, f"[DecodeKey] 秘钥验证成功，出现{key_count}次: {key}")
+            else:
+                logging.log(logging.INFO, f"[DecodeKey] 秘钥验证中，出现{key_count}/{self.verify_key_times}次: {key}")
+
     def attempt_decode(self):
         """尝试解析秘钥的主逻辑"""
         while True:
             try:
+                TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                IQ_FILE_SAVE_PATH =f"./log/raw_{self.target_site.name}_{self.inf_level.name}_{TIME_STR}.iq" # 保存IQ数据的文件路径 每一轮更新
                 # 创建gnuradio实例
                 logging.log(logging.INFO, f"[DecodeKey] 创建gnuradio实例 目标队伍颜色: {self.target_site.name}, 干扰等级: {self.inf_level.name}")
                 gnuradio = GnuradioClass(
@@ -73,7 +111,9 @@ class DecodeKey:
 
                     taps_lpf_pre=[TAPS_LPF_1_PRE, TAPS_LPF_2_PRE, TAPS_LPF_3_PRE][self.inf_level.value],
 
-                    addr=DEFAULT_ADDR,
+                    addr_pluto=ADDR_PLUTO,
+
+                    addr_zmq=ADDR_GNURADIO,
                     
                     filesink_path=IQ_FILE_SAVE_PATH
                 )
@@ -94,6 +134,11 @@ class DecodeKey:
                 logging.log(logging.ERROR, f"[DecodeKey] 运行gnuradio时发生异常: {e}")
                 self.last_decode_time = 0 # 重置解析成功时间
                 time.sleep(ERROR_SLEEP_TIME) # 休眠一段时间后重试
+
+            # 成功解析秘钥后退出逻辑
+            if len(self.verified_keys) == 2:
+                logging.log(logging.INFO, f"[DecodeKey] 成功解析两个秘钥 退出解析秘钥逻辑 已验证的秘钥列表: {self.verified_keys}")
+                break
 
 if __name__ == "__main__":
     # 初始化日志

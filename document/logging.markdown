@@ -36,7 +36,9 @@ INFO:创建gnuradio实例
 ERROR：主循环中发生错误（大概率gnuradio的问题）
 INFO:尝试提升干扰等级
 INFO:解析成功 输出解析出的dict
-
+WARNING:解析成功 但解析出的dict中没有key
+INFO:秘钥验证中/验证成功
+INFO:成功解析两种秘钥 退出秘钥解析
 # 文件
 
 >>iq文件

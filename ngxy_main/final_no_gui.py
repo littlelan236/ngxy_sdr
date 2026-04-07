@@ -32,7 +32,7 @@ import util
 
 class final_no_gui(gr.top_block):
 
-    def __init__(self, fc, bw, gain, taps_lpf, taps_lpf_pre, addr='tcp://127.0.0.1:2234', filesink_path='./log/raw_samples.iq'):
+    def __init__(self, fc, bw, gain, taps_lpf, taps_lpf_pre, addr_pluto='192.168.2.1', addr_zmq='tcp://127.0.0.1:2234', filesink_path='./log/raw_samples.iq'):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
@@ -50,8 +50,8 @@ class final_no_gui(gr.top_block):
         # Blocks
         ##################################################
 
-        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, addr, 100, False, (-1), '', True, True)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.3.2' if '192.168.3.2' else iio.get_pluto_uri(), [True, True], 32768)
+        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, addr_zmq, 100, False, (-1), '', True, True)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32(addr_pluto, [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
@@ -169,9 +169,9 @@ def main(top_block_cls=final_no_gui, options=None):
 
 
 class GnuradioClass():
-    def __init__(self, fc, bw, gain, taps_lpf, taps_lpf_pre, addr='tcp://127.0.0.1:2234', filesink_path='./log/raw_samples.iq'):
+    def __init__(self, fc, bw, gain, taps_lpf, taps_lpf_pre, addr_pluto='192.168.2.1', addr_zmq='tcp://127.0.0.1:2234', filesink_path='./log/raw_samples.iq'):
         try:
-            self.tb = final_no_gui(fc, bw, gain, taps_lpf, taps_lpf_pre, addr, filesink_path)
+            self.tb = final_no_gui(fc, bw, gain, taps_lpf, taps_lpf_pre, addr_pluto, addr_zmq, filesink_path)
         except Exception as e:
             logging.log(logging.ERROR, f"[GnuradioClass] error initializing gnuradio flowgraph: {e}")
 

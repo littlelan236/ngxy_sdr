@@ -11,7 +11,7 @@ def _generate_payload_random():
     """生成字典形式的payload {cmd_name:{xx:xx}} 数据为随机值"""
     output = {}
     for cmd_name, fields in SERIAL_FIELDS.items():
-            config = {field_name: random.randint(0, 255) for field_name, _ in fields}
+            config = {field_name: random.randint(0, (1 << (len * 8)) - 1) for field_name, len in fields}
             output[cmd_name] = config
     return output
 

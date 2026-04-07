@@ -7,7 +7,7 @@
 返回解析出的信息的dict 后续可改成接口的格式
 """
 from crc import verify_crc16_check_sum, verify_crc8_check_sum
-from zmq_server import zmq_server_rx
+from zmq_server import zmqServerRx
 import numpy as np
 from util import print_hex_by_byte, _reverse_string
 import logging
@@ -50,7 +50,7 @@ class frame_decoder:
         self._last_ota_frame_synced_time = time.time() # 记录上一次识别到空口帧的时间
         self._on_frame_decoded = on_frame_decoded # 成功解析帧后的回调函数
 
-        self._zmq_server = zmq_server_rx(
+        self._zmq_server = zmqServerRx(
             zmq_address, 
             zmq_data_type,
             zmq_buffer_size,
