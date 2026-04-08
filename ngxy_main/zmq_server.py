@@ -25,6 +25,8 @@ class zmqServerTx:
         """发送数据，如果是 dataclass 则自动序列化为 JSON 字节"""
         if isinstance(data, BaseStatus):
             data_dict = dataclasses.asdict(data)
+        if isinstance(data, dict):
+            data_dict = data
             data_str = json.dumps(data_dict)
             data_bytes = data_str.encode('utf-8')
             self._socket.send(data_bytes)

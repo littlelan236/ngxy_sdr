@@ -18,13 +18,11 @@ if __name__ == "__main__":
     server_tx = zmqServerTx() # port 2235
     decoder = frame_decoder("signal") # port 2236
 
-    # 生成空口帧的比特流
-    frames = build_frame_ota_jamming("RM2026")
-    logging.log(logging.INFO, f"发送干扰帧: RM2026")
-    server_tx.send_data(frames)
-    
-    time.sleep(5)
-
-    frames = build_frame_ota_jamming("HITSZ1")
-    logging.log(logging.INFO, f"发送干扰帧: HITSZ1")
-    server_tx.send_data(frames)
+    while True:
+        # 生成空口帧的比特流
+        # frames = build_frame_ota_jamming("RM2022")
+        frames = build_frame_ota_signal(_generate_payload_random())
+        logging.log(logging.INFO, f"发送信息帧")
+        server_tx.send_data(frames)
+        
+        time.sleep(0.5)

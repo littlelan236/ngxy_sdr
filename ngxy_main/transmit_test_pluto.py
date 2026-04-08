@@ -17,6 +17,7 @@ if __name__ == "__main__":
         for data_dict in data_dict_list:
             status = dict_to_dataclass(data_dict)
             logging.log(logging.INFO, f"解析结果: {status}")
+            print(status)
 
 
     server_tx = zmqServerTx() # port 2235
