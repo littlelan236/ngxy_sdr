@@ -201,6 +201,7 @@ class frame_decoder:
         data = frame_serial[bias_data:bias_data + data_length]
         
         # 将bytes解析成dict
+        cmd_name = None
         for key, value in CMD_OPTIONS.items():
             if cmd_id == value[0]:
                 cmd_name = key

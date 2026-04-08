@@ -212,7 +212,7 @@ def dict_to_dataclass(data_dict)-> BaseStatus | None:
         return EnemyTeamStatus(
             enemy_coin_remaining=data_dict["remaining_gold"],
             enemy_coin_total=data_dict["total_gold"],
-            rfid_status=EnemyTeamStatus.RFIDStatus(raw_data=data_dict["rfid_data"])
+            rfid_status=EnemyTeamStatus.RFIDStatus(raw_data=data_dict["macro_bits"])
         )
 
     elif "hero_health_regen" in data_dict:

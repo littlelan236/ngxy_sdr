@@ -449,7 +449,7 @@ blocks:
     alias: ''
     attenuation1: '0'
     bandwidth: signal_bandwidth
-    buffer_size: '32768'
+    buffer_size: 32768 * 16
     comment: ''
     cyclic: 'True'
     filter: ''
@@ -460,7 +460,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.1
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false
@@ -491,7 +491,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.1
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false

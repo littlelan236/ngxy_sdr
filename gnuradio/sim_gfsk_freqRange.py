@@ -326,7 +326,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.1' if '192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc_1)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
@@ -336,7 +336,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.1' if '192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], (32768 * 16), True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
         self.iio_pluto_sink_0.set_frequency(fc_1)

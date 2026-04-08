@@ -20,7 +20,7 @@ import logging
 from datetime import datetime
 
 ADDR_REPORT = "tcp://127.0.0.1:2238" # 上报地址
-ADDR_PLUTO = '192.168.2.2' # pluto地址
+ADDR_PLUTO = '192.168.2.4' # pluto地址
 ADDR_GNURADIO = "tcp://127.0.0.1:2234" # gnuradio发送解析结果的地址
 TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 LOG_FILE_PATH = f"log_sdr_{TIME_STR}.log"
