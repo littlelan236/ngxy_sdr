@@ -4,9 +4,9 @@ from concurrent.futures import ProcessPoolExecutor
 
 # 要运行的脚本列表
 scripts = [
-    "ngxy_main/transmit_test_keys.py",
-    "ngxy_main/decode_key_ctrl.py",
-    "ngxy_main/temp_test.py",
+    # "ngxy_main/transmit_test_keys.py",
+    "/home/lingweiquan/radio26/ngxy_sdr/ngxy_main/temp_test.py",
+    "/home/lingweiquan/radio26/ngxy_sdr/ngxy_main/decode_key_ctrl.py",
     # ... 可继续添加
 ]
 

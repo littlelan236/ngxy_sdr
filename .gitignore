@@ -5,3 +5,5 @@ temp_test.py
 log_sdr
 log/*
 *.bundle
+*.log
+*.iq

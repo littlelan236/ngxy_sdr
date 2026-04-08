@@ -37,12 +37,12 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '433200000'
+    value: '432200000'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [88, 160.0]
+    coordinate: [112, 120.0]
     rotation: 0
     state: enabled
 - name: gain
@@ -78,7 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [72, 240.0]
+    coordinate: [72, 192.0]
     rotation: 0
     state: enabled
 - name: taps_lpf
@@ -135,28 +135,6 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [536, 488.0]
-    rotation: 0
-    state: enabled
-- name: blocks_file_source_0
-  id: blocks_file_source
-  parameters:
-    affinity: ''
-    alias: ''
-    begin_tag: pmt.PMT_NIL
-    comment: ''
-    file: C:\Users\wangt\Desktop\ngxy_sdr_3\log\raw_2026-04-06_16-05-32.iq
-    length: '0'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    offset: '0'
-    repeat: 'True'
-    type: complex
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [8, 328.0]
     rotation: 0
     state: enabled
 - name: blocks_float_to_char_0
@@ -309,6 +287,37 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [320, 384.0]
+    rotation: 0
+    state: enabled
+- name: iio_pluto_source_0
+  id: iio_pluto_source
+  parameters:
+    affinity: ''
+    alias: ''
+    bandwidth: '20000000'
+    bbdc: 'True'
+    buffer_size: '32768'
+    comment: ''
+    filter: ''
+    filter_source: '''Auto'''
+    fpass: '0'
+    frequency: fc
+    fstop: '0'
+    gain1: '''slow_attack'''
+    len_tag_key: packet_len
+    manual_gain1: '64'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    quadrature: 'True'
+    rfdc: 'True'
+    samplerate: samp_rate
+    type: fc32
+    uri: 192.168.2.2
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [40, 268.0]
     rotation: 0
     state: enabled
 - name: qtgui_freq_sink_x_0
@@ -710,7 +719,6 @@ connections:
 - [analog_quadrature_demod_cf_0, '0', fft_filter_xxx_1_0, '0']
 - [analog_quadrature_demod_cf_0, '0', qtgui_time_sink_x_0_0, '1']
 - [analog_quadrature_demod_cf_0_0, '0', qtgui_time_sink_x_0_0, '0']
-- [blocks_file_source_0, '0', blocks_throttle2_0, '0']
 - [blocks_float_to_char_0, '0', blocks_pack_k_bits_bb_0_0_1, '0']
 - [blocks_pack_k_bits_bb_0_0_1, '0', zeromq_pub_sink_0_0, '0']
 - [blocks_throttle2_0, '0', analog_quadrature_demod_cf_0_0, '0']
@@ -724,6 +732,7 @@ connections:
 - [fft_filter_xxx_1_0, '0', qtgui_time_sink_x_0_0, '2']
 - [fft_filter_xxx_1_0_0, '0', analog_quadrature_demod_cf_0, '0']
 - [fft_filter_xxx_1_0_0, '0', qtgui_freq_sink_x_0, '1']
+- [iio_pluto_source_0, '0', blocks_throttle2_0, '0']
 
 metadata:
   file_format: 1

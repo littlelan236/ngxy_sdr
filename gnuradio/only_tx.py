@@ -25,6 +25,7 @@ from gnuradio import eng_notation
 from gnuradio import iio
 from gnuradio import zeromq
 import sip
+import sip
 import threading
 
 
