@@ -250,6 +250,7 @@ class frame_decoder:
                     continue
                 data_dict_list.append(d)
                 logging.log(logging.INFO, f"[frame_decoder] frame serial decode success")
+                logging.log(logging.INFO, f"[frame_decoder] {d}")
             
             # 调用回调函数进行后续处理
             if data_dict_list and self._on_frame_decoded:
