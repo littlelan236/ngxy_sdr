@@ -70,11 +70,28 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 1000000
-        self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 270000, 10000)
-        self.taps_lpf = taps_lpf = firdes.low_pass(1.0, samp_rate, 19230, 2000)
-        self.signal_bandwidth = signal_bandwidth = 240600
+        self.taps_lpf_pre_3 = taps_lpf_pre_3 = firdes.low_pass(1.0, samp_rate, 115774.37517887364, 2000)
+        self.taps_lpf_pre_2 = taps_lpf_pre_2 = firdes.low_pass(1.0, samp_rate, 420762.99262587266, 2000)
+        self.taps_lpf_pre_1 = taps_lpf_pre_1 = firdes.low_pass(1.0, samp_rate, 460774.5453191752, 2000)
+        self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 265000, 2000)
+        self.taps_lpf = taps_lpf = firdes.low_pass(1.0, samp_rate, 20000, 2000)
+        self.signal_bandwidth_3 = signal_bandwidth_3 = 250116
+        self.signal_bandwidth_2 = signal_bandwidth_2 = 860402
+        self.signal_bandwidth_1 = signal_bandwidth_1 = 940466
+        self.signal_bandwidth = signal_bandwidth = 540202
+        self.sensitivity_signal = sensitivity_signal = 1.5756
+        self.sensitivity_inf_3 = sensitivity_inf_3 = 0.6466
+        self.sensitivity_inf_2 = sensitivity_inf_2 = 2.5809
+        self.sensitivity_inf_1 = sensitivity_inf_1 = 2.8323
         self.gain = gain = 1 / 1.5
-        self.fc = fc = 432200000
+        self.fc_blue_3 = fc_blue_3 = 434320000
+        self.fc_blue_2 = fc_blue_2 = 434620000
+        self.fc_blue_1 = fc_blue_1 = 434920000
+        self.fc_blue = fc_blue = 433920000
+        self.fc_3 = fc_3 = 432800000
+        self.fc_2 = fc_2 = 432500000
+        self.fc_1 = fc_1 = 432200000
+        self.fc = fc = 433200000
 
         ##################################################
         # Blocks
@@ -270,9 +287,9 @@ class final_with_gui(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.2' if '192.168.2.2' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
-        self.iio_pluto_source_0.set_frequency(fc)
+        self.iio_pluto_source_0.set_frequency(fc_2)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
         self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
         self.iio_pluto_source_0.set_gain(0, 64)
@@ -280,7 +297,7 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
+        self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre_2, 1)
         self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
         self.fft_filter_xxx_1_0 = filter.fft_filter_fff(1, taps_lpf, 1)
         self.fft_filter_xxx_1_0.declare_sample_delay(0)
@@ -297,7 +314,6 @@ class final_with_gui(gr.top_block, Qt.QWidget):
             digital.IR_MMSE_8TAP,
             128,
             [])
-        self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
         self.analog_quadrature_demod_cf_0_0 = analog.quadrature_demod_cf(gain)
@@ -312,10 +328,6 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.connect((self.analog_quadrature_demod_cf_0_0, 0), (self.qtgui_time_sink_x_0_0, 0))
         self.connect((self.blocks_float_to_char_0, 0), (self.blocks_pack_k_bits_bb_0_0_1, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0_1, 0), (self.zeromq_pub_sink_0_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.fft_filter_xxx_1_0_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_freq_sink_x_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_time_sink_x_0, 0))
         self.connect((self.digital_symbol_sync_xx_0, 0), (self.epy_block_0_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.blocks_float_to_char_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.qtgui_time_sink_x_0_0_0, 0))
@@ -323,7 +335,10 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.connect((self.fft_filter_xxx_1_0, 0), (self.qtgui_time_sink_x_0_0, 2))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.analog_quadrature_demod_cf_0, 0))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.qtgui_freq_sink_x_0, 1))
-        self.connect((self.iio_pluto_source_0, 0), (self.blocks_throttle2_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.fft_filter_xxx_1_0_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.qtgui_time_sink_x_0, 0))
 
 
     def closeEvent(self, event):
@@ -339,21 +354,41 @@ class final_with_gui(gr.top_block, Qt.QWidget):
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
-        self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
-        self.blocks_throttle2_0.set_sample_rate(self.samp_rate)
+        self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 20000, 2000))
+        self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 265000, 2000))
+        self.set_taps_lpf_pre_1(firdes.low_pass(1.0, self.samp_rate, 460774.5453191752, 2000))
+        self.set_taps_lpf_pre_2(firdes.low_pass(1.0, self.samp_rate, 420762.99262587266, 2000))
+        self.set_taps_lpf_pre_3(firdes.low_pass(1.0, self.samp_rate, 115774.37517887364, 2000))
         self.iio_pluto_source_0.set_samplerate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0_0.set_samp_rate(self.samp_rate)
 
+    def get_taps_lpf_pre_3(self):
+        return self.taps_lpf_pre_3
+
+    def set_taps_lpf_pre_3(self, taps_lpf_pre_3):
+        self.taps_lpf_pre_3 = taps_lpf_pre_3
+
+    def get_taps_lpf_pre_2(self):
+        return self.taps_lpf_pre_2
+
+    def set_taps_lpf_pre_2(self, taps_lpf_pre_2):
+        self.taps_lpf_pre_2 = taps_lpf_pre_2
+        self.fft_filter_xxx_1_0_0.set_taps(self.taps_lpf_pre_2)
+
+    def get_taps_lpf_pre_1(self):
+        return self.taps_lpf_pre_1
+
+    def set_taps_lpf_pre_1(self, taps_lpf_pre_1):
+        self.taps_lpf_pre_1 = taps_lpf_pre_1
+
     def get_taps_lpf_pre(self):
         return self.taps_lpf_pre
 
     def set_taps_lpf_pre(self, taps_lpf_pre):
         self.taps_lpf_pre = taps_lpf_pre
-        self.fft_filter_xxx_1_0_0.set_taps(self.taps_lpf_pre)
 
     def get_taps_lpf(self):
         return self.taps_lpf
@@ -362,11 +397,53 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.taps_lpf = taps_lpf
         self.fft_filter_xxx_1_0.set_taps(self.taps_lpf)
 
+    def get_signal_bandwidth_3(self):
+        return self.signal_bandwidth_3
+
+    def set_signal_bandwidth_3(self, signal_bandwidth_3):
+        self.signal_bandwidth_3 = signal_bandwidth_3
+
+    def get_signal_bandwidth_2(self):
+        return self.signal_bandwidth_2
+
+    def set_signal_bandwidth_2(self, signal_bandwidth_2):
+        self.signal_bandwidth_2 = signal_bandwidth_2
+
+    def get_signal_bandwidth_1(self):
+        return self.signal_bandwidth_1
+
+    def set_signal_bandwidth_1(self, signal_bandwidth_1):
+        self.signal_bandwidth_1 = signal_bandwidth_1
+
     def get_signal_bandwidth(self):
         return self.signal_bandwidth
 
     def set_signal_bandwidth(self, signal_bandwidth):
         self.signal_bandwidth = signal_bandwidth
+
+    def get_sensitivity_signal(self):
+        return self.sensitivity_signal
+
+    def set_sensitivity_signal(self, sensitivity_signal):
+        self.sensitivity_signal = sensitivity_signal
+
+    def get_sensitivity_inf_3(self):
+        return self.sensitivity_inf_3
+
+    def set_sensitivity_inf_3(self, sensitivity_inf_3):
+        self.sensitivity_inf_3 = sensitivity_inf_3
+
+    def get_sensitivity_inf_2(self):
+        return self.sensitivity_inf_2
+
+    def set_sensitivity_inf_2(self, sensitivity_inf_2):
+        self.sensitivity_inf_2 = sensitivity_inf_2
+
+    def get_sensitivity_inf_1(self):
+        return self.sensitivity_inf_1
+
+    def set_sensitivity_inf_1(self, sensitivity_inf_1):
+        self.sensitivity_inf_1 = sensitivity_inf_1
 
     def get_gain(self):
         return self.gain
@@ -376,12 +453,54 @@ class final_with_gui(gr.top_block, Qt.QWidget):
         self.analog_quadrature_demod_cf_0.set_gain(self.gain)
         self.analog_quadrature_demod_cf_0_0.set_gain(self.gain)
 
+    def get_fc_blue_3(self):
+        return self.fc_blue_3
+
+    def set_fc_blue_3(self, fc_blue_3):
+        self.fc_blue_3 = fc_blue_3
+
+    def get_fc_blue_2(self):
+        return self.fc_blue_2
+
+    def set_fc_blue_2(self, fc_blue_2):
+        self.fc_blue_2 = fc_blue_2
+
+    def get_fc_blue_1(self):
+        return self.fc_blue_1
+
+    def set_fc_blue_1(self, fc_blue_1):
+        self.fc_blue_1 = fc_blue_1
+
+    def get_fc_blue(self):
+        return self.fc_blue
+
+    def set_fc_blue(self, fc_blue):
+        self.fc_blue = fc_blue
+
+    def get_fc_3(self):
+        return self.fc_3
+
+    def set_fc_3(self, fc_3):
+        self.fc_3 = fc_3
+
+    def get_fc_2(self):
+        return self.fc_2
+
+    def set_fc_2(self, fc_2):
+        self.fc_2 = fc_2
+        self.iio_pluto_source_0.set_frequency(self.fc_2)
+
+    def get_fc_1(self):
+        return self.fc_1
+
+    def set_fc_1(self, fc_1):
+        self.fc_1 = fc_1
+
     def get_fc(self):
         return self.fc
 
     def set_fc(self, fc):
         self.fc = fc
-        self.iio_pluto_source_0.set_frequency(self.fc)
 
 
 

@@ -217,7 +217,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: firdes.low_pass(1.0, samp_rate, 270000, 10000)
+    value: firdes.low_pass(1.0, samp_rate, 260764, 5000)
   states:
     bus_sink: false
     bus_source: false
@@ -447,7 +447,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '0'
+    attenuation1: '60'
     bandwidth: signal_bandwidth
     buffer_size: 32768 * 16
     comment: ''
@@ -455,7 +455,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_1
+    frequency: fc
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
@@ -480,7 +480,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_1
+    frequency: fc
     fstop: '0'
     gain1: '''slow_attack'''
     len_tag_key: packet_len
@@ -491,7 +491,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.4
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
@@ -993,7 +993,7 @@ blocks:
 - name: zeromq_sub_source_0
   id: zeromq_sub_source
   parameters:
-    address: tcp://127.0.0.1:2235
+    address: tcp://127.0.0.1:2234
     affinity: ''
     alias: ''
     bind: 'False'

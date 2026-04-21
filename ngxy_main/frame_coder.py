@@ -3,7 +3,7 @@ import random
 
 from crc import append_crc8_check_sum, append_crc16_check_sum, verify_crc8_check_sum, verify_crc16_check_sum
 from util import print_hex_by_byte, _reverse_string
-from frame_def import (CMD_OPTIONS, SERIAL_FIELDS, SOF, ACCESS_CODE_SIGNAL, ACCESS_CODE_JAMMING,
+from def_frame import (CMD_OPTIONS, SERIAL_FIELDS, SOF, ACCESS_CODE_SIGNAL, ACCESS_CODE_JAMMING,
                        LEN_OTA_PAYLOAD, ENDIAN, ENDIAN_DATA, ENDIAN_OTA,
                        LEN_SOF, LEN_CMD_ID, LEN_DATA_LENGTH, LEN_SEQ, LEN_ACCESS, LEN_OTA_LENGTH)
 

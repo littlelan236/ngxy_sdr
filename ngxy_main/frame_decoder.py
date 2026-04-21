@@ -13,7 +13,7 @@ from util import print_hex_by_byte, _reverse_string
 import logging
 import time
 import threading
-from frame_def import *
+from def_frame import *
 
 LEN_HEADER = LEN_SOF + LEN_DATA_LENGTH + LEN_SEQ + 1
 ACCESS_JAMMING_NPARRAY_BITS = np.unpackbits(np.frombuffer(ACCESS_CODE_JAMMING.to_bytes(8, ENDIAN_OTA), dtype=np.uint8))
@@ -27,12 +27,13 @@ class frame_decoder:
         len_history_payload = 44, # 串口协议帧最长为45bytes 每轮保留上一轮最后45bytes
         crc8_enabled = True, # 是否在串口帧帧头识别时启用CRC8校验
         crc16_enabled = True, # 是否在串口帧解析时启用CRC16校验
-        update_interval = 0.005, # 更新buffer_bits并进行后续处理的频率
+        update_interval = 0.001, # 更新buffer_bits并进行后续处理的频率
         buffer_payload_expire_time = 0.2, # 连续多长时间没有识别到有效空口帧 则清空buffer_payload 防止过时的数据被反复输出
+        bits_source = "zmq", # zmq: 内部从ZMQ读取bits; direct: 由外部主动push_bits
         zmq_address = "tcp://127.0.0.1:2236",
         zmq_data_type = np.uint8,
         zmq_buffer_size = 500, # 理论上0.25秒的数据会占满500bytes
-        zmq_read_data_interval = 0.005, # 从tcp buffer读取新数据的时间间隔
+        zmq_read_data_interval = 0.001, # 从tcp buffer读取新数据的时间间隔
         on_frame_decoded = None, # 成功解析帧后的回调函数，参数为data_dict_list
     ):
         # 比特流缓冲区
@@ -49,15 +50,23 @@ class frame_decoder:
         self._buffer_payload_expire_time = buffer_payload_expire_time
         self._last_ota_frame_synced_time = time.time() # 记录上一次识别到空口帧的时间
         self._on_frame_decoded = on_frame_decoded # 成功解析帧后的回调函数
+        self._buffer_payload_last_size = 0 # 上一轮_buffer_payload的大小 用于判断是否有新数据被添加到_buffer_payload中
+        self._bits_source = bits_source
 
-        self._zmq_server = zmqServerRx(
-            zmq_address, 
-            zmq_data_type,
-            zmq_buffer_size,
-            zmq_read_data_interval
-        )
-        thread = threading.Thread(target=self._worker)
-        thread.start()
+        self._zmq_server = None
+        self._worker_thread = None
+
+        if self._bits_source == "zmq":
+            self._zmq_server = zmqServerRx(
+                zmq_address,
+                zmq_data_type,
+                zmq_buffer_size,
+                zmq_read_data_interval,
+            )
+            self._worker_thread = threading.Thread(target=self._worker, daemon=True)
+            self._worker_thread.start()
+        elif self._bits_source != "direct":
+            raise ValueError(f"Unsupported bits_source: {self._bits_source}")
 
     # def _debug(self, bits):
     #     """测试用"""
@@ -87,16 +96,74 @@ class frame_decoder:
         """开关crc16校验"""
         self._crc16_enables = enable
 
-    def _read_data(self):
-        """从zmq_server读取数据并转化为比特流 np.int8(bytes) -> np.int8(bits)"""
-        # 删除buffer中除最后一段外的其他bit
+    def _append_bits(self, bits: np.ndarray):
+        """将新bits追加到内部缓存中，并保留必要的历史长度。"""
+
+        if bits is None:
+            return
+
+        new_bits = np.asarray(bits, dtype=np.uint8).reshape(-1)
+        if new_bits.size == 0:
+            return
+
         if len(self._buffer_bits) > self._len_history_bits:
             self._buffer_bits = self._buffer_bits[-self._len_history_bits:]
+            logging.log(logging.DEBUG, f"[frame decoder] del buffer_bits {len(self._buffer_bits)}")
+
+        if len(self._buffer_bits) == 0:
+            self._buffer_bits = new_bits.copy()
+        else:
+            self._buffer_bits = np.concatenate([self._buffer_bits, new_bits])
+
+        logging.log(logging.DEBUG, f"[frame decoder] append bits current buffer_bits size {len(self._buffer_bits)}")
+
+    def _read_data(self):
+        """从zmq_server读取数据并转化为比特流 np.int8(bytes) -> np.int8(bits)"""
         # 将zmq_server中读取的字节流转换为比特流后进行拼接
+        if self._zmq_server is None:
+            return
+
         data = self._zmq_server.read_data()
         if data is not None:
-            self._buffer_bits = np.concatenate([self._buffer_bits, np.unpackbits(data)])
+            self._append_bits(np.unpackbits(data))
         logging.log(logging.DEBUG, f"[frame decoder] read data  current buffer_bits size {len(self._buffer_bits)}")
+
+    def push_bits(self, bits: np.ndarray | list | tuple) -> list[dict]:
+        """由外部接收链路直接推送bits并立即尝试解帧。"""
+
+        if self._bits_source != "direct":
+            raise RuntimeError("push_bits is only available when bits_source='direct'")
+
+        self._append_bits(bits)
+        return self._process_current_buffer()
+
+    def _process_current_buffer(self) -> list[dict]:
+        """从当前bits缓存中完成OTA帧与串口帧解析。"""
+
+        self._frame_sync_ota()
+        frames_serial = self._frame_sync_serial()
+        if frames_serial is None or len(frames_serial) == 0:
+            logging.log(logging.DEBUG, f"[frame_decoder] frames serial is None")
+            return []
+
+        logging.log(logging.INFO, f"[frame_decoder] frames serial detected {len(frames_serial)}")
+        data_dict_list = []
+        for f in frames_serial:
+            d = self._decode_frame_serial(f)
+            if d is None:
+                logging.log(logging.INFO, f"[frame_decoder] frame serial decode failed")
+                continue
+            data_dict_list.append(d)
+            logging.log(logging.INFO, f"[frame_decoder] frame serial decode success")
+            logging.log(logging.INFO, f"[frame_decoder] {d}")
+
+        if data_dict_list and self._on_frame_decoded:
+            try:
+                self._on_frame_decoded(data_dict_list)
+            except Exception as e:
+                logging.log(logging.WARNING, f"[frame_decoder] callback error: {e}")
+
+        return data_dict_list
 
     def _read_bytes_from_bits(self, bits: np.ndarray[np.uint8], start_bit: int, byte_count: int) -> bytes:
         """从比特流指定idx开始读连续的指定长度的bytes"""
@@ -122,8 +189,8 @@ class frame_decoder:
         payload_buffer有超时清空机制 防止一直识别不到空口帧导致payload_buffer中的旧数据被反复读取
         """
         # 删除buffer中除最后一段外的其他bytes
-        if len(self._buffer_payload) > self._len_history_payload:
-            self._buffer_payload = self._buffer_payload[-self._len_history_payload:]
+        # if len(self._buffer_payload) > self._len_history_payload:
+        #     self._buffer_payload = self._buffer_payload[-self._len_history_payload:]
 
         # 缓冲区为空时直接返回
         if len(self._buffer_bits) == 0:
@@ -163,28 +230,57 @@ class frame_decoder:
         """在payload buffer中识别串口帧"""
         if len(self._buffer_payload) == 0:
             return []
-        
-        idx = [i for i, b in enumerate(self._buffer_payload) if b == SOF]
+
+        payload = self._buffer_payload
         frames_serial = []
+        cursor = 0
 
-        # 构建frame_serial
-        for i in idx:
-            data_length = int.from_bytes(self._buffer_payload[i + LEN_SOF:i + LEN_SOF + LEN_DATA_LENGTH], ENDIAN)
-            frame_length = LEN_HEADER + LEN_CMD_ID + data_length + 2
-            if i + frame_length > len(self._buffer_payload):
+        while cursor < len(payload):
+            sof_idx = payload.find(bytes([SOF]), cursor)
+            if sof_idx < 0:
+                break
+
+            # 帧头都不完整时，若后面还有SOF则继续找下一个候选；否则保留半包等待补全
+            if len(payload) - sof_idx < LEN_HEADER:
+                next_sof_idx = payload.find(bytes([SOF]), sof_idx + 1)
+                if next_sof_idx < 0:
+                    self._buffer_payload = payload[sof_idx:]
+                    self._buffer_payload_last_size = len(self._buffer_payload)
+                    return frames_serial
+                cursor = sof_idx + 1
                 continue
-            frames_serial.append(self._buffer_payload[i:i + frame_length])
 
-        if self._crc8_enables:
-            # 进行crc8校验 删除未通过校验的帧
-            for f in frames_serial:
-                if not verify_crc8_check_sum(f[:LEN_HEADER]):
-                    logging.log(logging.INFO, "[frame_decoder]crc8 verify failed")
-                    frames_serial.remove(f)
-            return frames_serial
-        else:
-            return frames_serial
-            # 不进行crc8校验 直接返回
+            data_length = int.from_bytes(payload[sof_idx + LEN_SOF:sof_idx + LEN_SOF + LEN_DATA_LENGTH], ENDIAN)
+            frame_length = LEN_HEADER + LEN_CMD_ID + data_length + 2
+
+            # 长度明显异常时，视为误检SOF，向后滑动一个字节继续找
+            if frame_length < LEN_HEADER + LEN_CMD_ID + 2:
+                cursor = sof_idx + 1
+                continue
+
+            # 帧体不完整时，如果后面还有SOF则优先继续找后续候选；否则保留半包
+            if len(payload) - sof_idx < frame_length:
+                next_sof_idx = payload.find(bytes([SOF]), sof_idx + 1)
+                if next_sof_idx >= 0:
+                    cursor = sof_idx + 1
+                    continue
+                self._buffer_payload = payload[sof_idx:]
+                self._buffer_payload_last_size = len(self._buffer_payload)
+                return frames_serial
+
+            frame = payload[sof_idx:sof_idx + frame_length]
+            if self._crc8_enables and not verify_crc8_check_sum(frame[:LEN_HEADER]):
+                logging.log(logging.INFO, "[frame_decoder]crc8 verify failed")
+                cursor = sof_idx + 1
+                continue
+
+            frames_serial.append(frame)
+            cursor = sof_idx + frame_length
+
+        # 扫描完成后只保留尚未消费的尾部，避免重复解析
+        self._buffer_payload = payload[cursor:]
+        self._buffer_payload_last_size = len(self._buffer_payload)
+        return frames_serial
     
     def _decode_frame_serial(self, frame_serial) -> dict | None:
         """
@@ -215,13 +311,19 @@ class frame_decoder:
         # 从bytes中解析信息为dict
         for name, length in fields:
             raw = data[offset:offset + length]
+            if len(raw) != length:
+                logging.log(logging.WARNING, f"[frame_decoder] field length mismatch: {name} expect {length} got {len(raw)}")
+                return None
             if name == "key":
                 value = str(raw)
                 if ENDIAN_DATA == "little":
                     # 翻转字符串
                     value = _reverse_string(value)
             else:
-                value = int.from_bytes(raw, ENDIAN_DATA)
+                if length == 2 or length == 1:
+                    value = int.from_bytes(raw, ENDIAN_DATA)
+                elif length == 4:
+                    value = int.to_bytes(int.from_bytes(raw, ENDIAN_DATA))
             data_dict[name] = value
             offset += length
         return data_dict
@@ -233,32 +335,7 @@ class frame_decoder:
 
             # 将zmq_server中缓存读取到bits缓存中
             self._read_data()
-            # 将bits缓存中的信息 读取串口协议帧 存放到payload缓存中
-            self._frame_sync_ota()
-            # 将payload缓存中的信息进行串口信息帧识别与解析
-            frames_serial = self._frame_sync_serial()
-            if frames_serial is None or len(frames_serial) == 0:
-                logging.log(logging.DEBUG, f"[frame_decoder] frames serial is None")
-                continue
-            else:
-                logging.log(logging.INFO, f"[frame_decoder] frames serial detected {len(frames_serial)}")
-            # 解析串口帧信息
-            data_dict_list = []
-            for f in frames_serial:
-                d = self._decode_frame_serial(f)
-                if d is None:
-                    logging.log(logging.INFO, f"[frame_decoder] frame serial decode failed")
-                    continue
-                data_dict_list.append(d)
-                logging.log(logging.INFO, f"[frame_decoder] frame serial decode success")
-                logging.log(logging.INFO, f"[frame_decoder] {d}")
-            
-            # 调用回调函数进行后续处理
-            if data_dict_list and self._on_frame_decoded:
-                try:
-                    self._on_frame_decoded(data_dict_list)
-                except Exception as e:
-                    logging.log(logging.WARNING, f"[frame_decoder] callback error: {e}")
+            self._process_current_buffer()
 
             time_sleep = self._update_interval - (time.time() - time_start)
             if time_sleep > 0:

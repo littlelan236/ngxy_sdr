@@ -70,7 +70,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 1000000
-        self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 270000, 10000)
+        self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 260764, 5000)
         self.taps_lpf = taps_lpf = firdes.low_pass(1.0, samp_rate, 19230, 2000)
         self.signal_bandwidth = signal_bandwidth = 240600
         self.sensitivity_signal = sensitivity_signal = 1.5756
@@ -90,7 +90,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         # Blocks
         ##################################################
 
-        self.zeromq_sub_source_0 = zeromq.sub_source(gr.sizeof_char, 1, 'tcp://127.0.0.1:2235', 100, False, (-1), '', False)
+        self.zeromq_sub_source_0 = zeromq.sub_source(gr.sizeof_char, 1, 'tcp://127.0.0.1:2234', 100, False, (-1), '', False)
         self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2236', 100, False, (-1), '', True, True)
         self.qtgui_time_sink_x_0_0_0_1_0 = qtgui.time_sink_f(
             1024, #size
@@ -326,9 +326,9 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
-        self.iio_pluto_source_0.set_frequency(fc_1)
+        self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
         self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
         self.iio_pluto_source_0.set_gain(0, 64)
@@ -339,9 +339,9 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
         self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], (32768 * 16), True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0.set_frequency(fc_1)
+        self.iio_pluto_sink_0.set_frequency(fc)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 0)
+        self.iio_pluto_sink_0.set_attenuation(0, 60)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
         self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
         self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
@@ -415,7 +415,7 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
-        self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
+        self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 260764, 5000))
         self.iio_pluto_sink_0.set_samplerate(self.samp_rate)
         self.iio_pluto_source_0.set_samplerate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
@@ -510,14 +510,14 @@ class sim_gfsk_freqRange(gr.top_block, Qt.QWidget):
 
     def set_fc_1(self, fc_1):
         self.fc_1 = fc_1
-        self.iio_pluto_sink_0.set_frequency(self.fc_1)
-        self.iio_pluto_source_0.set_frequency(self.fc_1)
 
     def get_fc(self):
         return self.fc
 
     def set_fc(self, fc):
         self.fc = fc
+        self.iio_pluto_sink_0.set_frequency(self.fc)
+        self.iio_pluto_source_0.set_frequency(self.fc)
 
 
 
