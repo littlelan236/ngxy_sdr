@@ -268,7 +268,7 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: C:\Users\wangt\Desktop\rec\2
+    file: C:\Users\wangt\Desktop\rec\1
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
@@ -290,13 +290,13 @@ blocks:
     alias: ''
     attenuation1: '0'
     bandwidth: signal_bandwidth_1
-    buffer_size: '32768'
+    buffer_size: '3276800'
     comment: ''
     cyclic: 'True'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_2
+    frequency: fc
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate

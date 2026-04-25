@@ -869,7 +869,7 @@ blocks:
 - name: zeromq_pub_sink_0_0
   id: zeromq_pub_sink
   parameters:
-    address: tcp://127.0.0.1:2234
+    address: tcp://127.0.0.1:2235
     affinity: ''
     alias: ''
     bind: 'True'

@@ -323,7 +323,7 @@ class frame_decoder:
                 if length == 2 or length == 1:
                     value = int.from_bytes(raw, ENDIAN_DATA)
                 elif length == 4:
-                    value = int.to_bytes(int.from_bytes(raw, ENDIAN_DATA))
+                    value = raw
             data_dict[name] = value
             offset += length
         return data_dict

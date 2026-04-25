@@ -19,7 +19,8 @@ class pluto_ctrl_rx:
 		self.sdr.rx_buffer_size = self.num_samps
 
 	def rx(self):
-		return self.sdr.rx()
+		ret = self.sdr.rx()
+		return ret
 
 
 class pluto_ctrl_tx:
@@ -40,6 +41,6 @@ class pluto_ctrl_tx:
 
 
 if __name__ == '__main__':
-	rx_ctrl = pluto_ctrl_rx()
+	rx_ctrl = pluto_ctrl_rx(ip_addr="ip:192.168.2.4")
 	samples = rx_ctrl.rx()
 	print(samples[0:10])

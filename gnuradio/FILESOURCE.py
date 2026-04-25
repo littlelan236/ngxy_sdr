@@ -97,7 +97,7 @@ class FILESOURCE(gr.top_block, Qt.QWidget):
         # Blocks
         ##################################################
 
-        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2234', 100, False, (-1), '', True, True)
+        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2235', 100, False, (-1), '', True, True)
         self.qtgui_time_sink_x_0_0_0 = qtgui.time_sink_f(
             1024, #size
             samp_rate, #samp_rate

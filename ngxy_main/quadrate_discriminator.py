@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Iterable
+from numba import njit
 
 import numpy as np
 
@@ -13,6 +14,40 @@ def _as_1d_array(samples: Iterable[complex | float] | np.ndarray) -> np.ndarray:
 	if array.ndim != 1:
 		return array.reshape(-1)
 	return array
+
+
+@njit(cache=True)
+def _discriminate_chunk_jit(
+	array: np.ndarray,
+	gain: float,
+	clip_output: bool,
+	output_limit: float,
+	prev_sample: np.complex128,
+	has_prev: bool,
+) -> tuple[np.ndarray, np.complex128, bool]:
+	outputs = np.empty(array.size, dtype=np.float64)
+	limit = abs(output_limit)
+
+	for i in range(array.size):
+		current = np.complex128(array[i])
+		if not has_prev:
+			outputs[i] = 0.0
+			prev_sample = current
+			has_prev = True
+			continue
+
+		prod = current * np.conjugate(prev_sample)
+		value = np.arctan2(np.imag(prod), np.real(prod)) * gain
+		if clip_output:
+			if value > limit:
+				value = limit
+			elif value < -limit:
+				value = -limit
+
+		outputs[i] = value
+		prev_sample = current
+
+	return outputs, prev_sample, has_prev
 
 
 @dataclass
@@ -67,6 +102,21 @@ class QuadratureDiscriminator:
 		elif array.dtype != np.complex128:
 			array = array.astype(np.complex128, copy=False)
 
+		has_prev = self._prev_sample is not None
+		prev = np.complex128(self._prev_sample if has_prev else 0.0 + 0.0j)
+		limit = float(self.config.output_limit) if self.config.output_limit is not None else 0.0
+		outputs, prev, has_prev = _discriminate_chunk_jit(
+			array,
+			float(self.config.gain),
+			bool(self.config.clip_output and self.config.output_limit is not None),
+			limit,
+			prev,
+			has_prev,
+		)
+		self._prev_sample = complex(prev) if has_prev else None
+		return outputs.astype(np.float32, copy=False)
+
+		# 非jit逻辑
 		outputs: list[float] = []
 		for sample in array:
 			outputs.append(self._discriminate_pair(complex(sample)))

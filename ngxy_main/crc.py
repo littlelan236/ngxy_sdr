@@ -108,20 +108,26 @@ def get_crc16_check_sum(
 	return crc
 
 # crc16校验 最后两个byte是校验码（小端序） 计算除最后两个byte外的CRC16后 将结果的两个byte高低位翻转在与数据包最后两byte比较
-def verify_crc16_check_sum(message_with_crc: bytes | bytearray | Iterable[int]) -> bool:
+def verify_crc16_check_sum(message_with_crc: bytes | bytearray | Iterable[int], endian: str) -> bool:
 	data = _normalize_data(message_with_crc)
 	if len(data) <= 2:
 		return False
 	expected = get_crc16_check_sum(data[:-2], CRC16_INIT)
-	return (((expected >> 8) & 0xFF) == data[-1]) and ((expected & 0xFF) == data[-2])
+	if endian == "little":
+		return (((expected >> 8) & 0xFF) == data[-1]) and ((expected & 0xFF) == data[-2])
+	else:
+		return (((expected >> 8) & 0xFF) == data[-2]) and ((expected & 0xFF) == data[-1])
 
 
 # 在一包数据末尾添加crc16校验码
 # CRC16校验码的两字节是小端序 计算完先翻转再append
-def append_crc16_check_sum(message: bytes | bytearray | Iterable[int]) -> bytes:
+def append_crc16_check_sum(message: bytes | bytearray | Iterable[int], endian: str) -> bytes:
 	data = _normalize_data(message)
 	crc = get_crc16_check_sum(data, CRC16_INIT)
-	return data + bytes([crc & 0xFF, (crc >> 8) & 0xFF])
+	if endian == "little":
+		return data + bytes([crc & 0xFF, (crc >> 8) & 0xFF])
+	else:
+		return data + bytes([(crc >> 8) & 0xFF, crc & 0xFF])
 
 if __name__ == "__main__":
     # 创建与 C++ 相同的初始数组

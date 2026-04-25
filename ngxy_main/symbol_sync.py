@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from numba import njit
 from typing import Iterable
 
 import numpy as np
@@ -19,6 +20,56 @@ def _as_1d_array(samples: Iterable[complex | float] | np.ndarray) -> np.ndarray:
     if array.ndim != 1:
         return array.reshape(-1)
     return array
+
+
+@njit(cache=True)
+def _mm_process_chunk_jit(
+    buffer: np.ndarray,
+    mu: float,
+    omega: float,
+    gain_mu: float,
+    gain_omega: float,
+    omega_min: float,
+    omega_max: float,
+    last_symbol: np.complex128,
+    last_decision: float,
+    has_last: bool,
+) -> tuple[np.ndarray, float, float, np.complex128, float, bool]:
+    n = buffer.size
+    outputs = np.empty(n, dtype=np.complex128)
+    out_count = 0
+
+    while True:
+        if mu < 0.0:
+            break
+
+        left = int(np.floor(mu))
+        right = left + 1
+        if right >= n:
+            break
+
+        frac = mu - left
+        current = buffer[left] * (1.0 - frac) + buffer[right] * frac
+        decision = 1.0 if np.real(current) >= 0.0 else -1.0
+        outputs[out_count] = current
+        out_count += 1
+
+        if has_last:
+            error = last_decision * np.real(current) - decision * np.real(last_symbol)
+            omega += gain_omega * error
+            if omega < omega_min:
+                omega = omega_min
+            elif omega > omega_max:
+                omega = omega_max
+            mu += omega + gain_mu * error
+        else:
+            mu += omega
+            has_last = True
+
+        last_symbol = current
+        last_decision = decision
+
+    return outputs[:out_count], mu, omega, last_symbol, last_decision, has_last
 
 
 @dataclass
@@ -112,6 +163,34 @@ class MMSymbolSynchronizer:
                 new_samples = new_samples.astype(np.float64, copy=False)
             self._buffer = np.concatenate([self._buffer, new_samples])
 
+        work_buffer = self._buffer.astype(np.complex128, copy=False)
+        has_last = self._last_symbol is not None and self._last_decision is not None
+        last_symbol = np.complex128(self._last_symbol if has_last else 0.0 + 0.0j)
+        last_decision = float(self._last_decision) if has_last else 0.0
+
+        outputs, self.mu, self.omega, last_symbol, last_decision, has_last = _mm_process_chunk_jit(
+            work_buffer,
+            float(self.mu),
+            float(self.omega),
+            float(self.config.gain_mu),
+            float(self.config.gain_omega),
+            float(self.omega_min),
+            float(self.omega_max),
+            last_symbol,
+            last_decision,
+            has_last,
+        )
+
+        if has_last:
+            self._last_symbol = complex(last_symbol)
+            self._last_decision = float(last_decision)
+
+        self._trim_consumed_buffer()
+        if outputs.size == 0:
+            return np.array([], dtype=self._buffer.dtype if self._buffer.size else np.complex128)
+        return outputs.astype(self._buffer.dtype if self._buffer.size else np.complex128, copy=False)
+
+        # 非jit逻辑
         outputs: list[complex | float] = []
 
         while True:

@@ -5,6 +5,72 @@ from PyQt5.QtCore import Qt
 from collections import deque
 import numpy as np
 
+
+def _is_iterable_samples(value):
+    if isinstance(value, np.ndarray):
+        return value.ndim > 0
+    if isinstance(value, (list, tuple, deque)):
+        return True
+    return hasattr(value, '__iter__') and not isinstance(value, (str, bytes, bytearray))
+
+
+def _to_sample_list(value):
+    if isinstance(value, np.ndarray):
+        if value.ndim == 0:
+            return [value.item()]
+        return value.reshape(-1).tolist()
+    if isinstance(value, (list, tuple, deque)):
+        return list(value)
+    if hasattr(value, '__iter__') and not isinstance(value, (str, bytes, bytearray)):
+        try:
+            return list(value)
+        except Exception:
+            return [value]
+    return [value]
+
+
+def _append_chunk_to_buffer(buf: deque, value) -> None:
+    """Append scalar or chunk to deque efficiently, keeping only newest maxlen values."""
+    maxlen = buf.maxlen
+
+    if isinstance(value, np.ndarray):
+        if value.ndim == 0:
+            buf.append(value.item())
+            return
+        flat = value.reshape(-1)
+        if flat.size == 0:
+            return
+        if maxlen is not None and flat.size >= maxlen:
+            tail = flat[-maxlen:]
+            buf.clear()
+            buf.extend(tail.tolist())
+            return
+        buf.extend(flat.tolist())
+        return
+
+    if isinstance(value, (list, tuple, deque)):
+        if len(value) == 0:
+            return
+        if maxlen is not None and len(value) >= maxlen:
+            buf.clear()
+            buf.extend(list(value)[-maxlen:])
+            return
+        buf.extend(value)
+        return
+
+    if _is_iterable_samples(value):
+        seq = _to_sample_list(value)
+        if len(seq) == 0:
+            return
+        if maxlen is not None and len(seq) >= maxlen:
+            buf.clear()
+            buf.extend(seq[-maxlen:])
+            return
+        buf.extend(seq)
+        return
+
+    buf.append(value)
+
 class ChartItem(QWidget):
     """支持多条曲线的折线图组件。
 
@@ -262,7 +328,14 @@ class ChartItem(QWidget):
             data_iter = list(buf)
 
         for idx, value in enumerate(data_iter):
-            series.append(idx, value)
+            # Qt 折线图需要实数；遇到复数时按需求丢弃虚部。
+            if np.iscomplexobj(value):
+                value = np.real(value)
+            try:
+                y_val = float(value)
+            except Exception:
+                continue
+            series.append(float(idx), y_val)
 
     def add_values(self, values_list):
         """向每条曲线追加一个新数据点。
@@ -272,24 +345,29 @@ class ChartItem(QWidget):
         values_list : list
             与曲线数量相同长度的列表，每个元素是对应曲线的新数据点
         """
-        for i, val in enumerate(values_list):
-            if i < len(self.buffer_list):
-                buf = self.buffer_list[i]
-                buf.append(val)
-                # deque with maxlen auto-discards oldest; ensure property holds
-                if self.buffer_size is not None and len(buf) > self.buffer_size:
-                    # convert to new deque in case maxlen not set
-                    self.buffer_list[i] = deque(list(buf)[-self.buffer_size:], maxlen=self.buffer_size)
+        num_series = len(self.buffer_list)
+
+        # 单路图：支持直接传入整段样本（如 ndarray）
+        if num_series == 1:
+            buf = self.buffer_list[0]
+            _append_chunk_to_buffer(buf, values_list)
+        # 多路图：当传入长度等于路数时，允许每一路都传一个标量或一段样本
+        elif isinstance(values_list, (list, tuple)) and len(values_list) == num_series:
+            for i, val in enumerate(values_list):
+                _append_chunk_to_buffer(self.buffer_list[i], val)
+        else:
+            # 兼容旧行为：按“每路一个值”映射前 num_series 个元素
+            for i, val in enumerate(_to_sample_list(values_list)):
+                if i < num_series:
+                    _append_chunk_to_buffer(self.buffer_list[i], val)
+
         if not getattr(self, '_silent', False):
             self._refresh_all_series()
 
     def add_value(self, value, series_idx=0):
         """向指定曲线追加单个数据点（向后兼容）。"""
         if series_idx < len(self.buffer_list):
-            buf = self.buffer_list[series_idx]
-            buf.append(value)
-            if self.buffer_size is not None and len(buf) > self.buffer_size:
-                self.buffer_list[series_idx] = deque(list(buf)[-self.buffer_size:], maxlen=self.buffer_size)
+            _append_chunk_to_buffer(self.buffer_list[series_idx], value)
             if not getattr(self, '_silent', False):
                 self._refresh_single_series(series_idx)
 
@@ -567,13 +645,24 @@ class FftChartItem(QWidget):
                 pass
 
     def add_values(self, values_list):
-        for i, val in enumerate(values_list):
-            if i < len(self.buffer_list):
-                self.buffer_list[i].append(val)
+        num_series = len(self.buffer_list)
+
+        if num_series == 1:
+            _append_chunk_to_buffer(self.buffer_list[0], values_list)
+            return
+
+        if isinstance(values_list, (list, tuple)) and len(values_list) == num_series:
+            for i, val in enumerate(values_list):
+                _append_chunk_to_buffer(self.buffer_list[i], val)
+            return
+
+        for i, val in enumerate(_to_sample_list(values_list)):
+            if i < num_series:
+                _append_chunk_to_buffer(self.buffer_list[i], val)
 
     def add_value(self, value, series_idx=0):
         if series_idx < len(self.buffer_list):
-            self.buffer_list[series_idx].append(value)
+            _append_chunk_to_buffer(self.buffer_list[series_idx], value)
 
     def update_data(self, data_list):
         if not isinstance(data_list, list) or (len(data_list) > 0 and not isinstance(data_list[0], (list, tuple))):

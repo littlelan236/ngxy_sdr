@@ -63,7 +63,7 @@ def _build_frame_serial(cmd_option:str, payload:dict, seq=0) -> bytes:
         # 添加cmd_id和payload
         frame = header + _cmd_id.to_bytes(LEN_CMD_ID, ENDIAN) + _encode_payload(cmd_option, payload)
         # 添加crc16
-        frame = append_crc16_check_sum(frame)
+        frame = append_crc16_check_sum(frame, ENDIAN)
         return frame
 
 

@@ -4,7 +4,6 @@
 ENDIAN = "little" # 串口协议帧中cmd_id和data_length的端序
 ENDIAN_DATA = "little" # 串口协议中data的端序
 ENDIAN_OTA = "big" # 空口帧的端序
-# 港科开源中，ENDIAN="little" ENDIAN_DATA="big" 非常神秘
 
 # 定义指令格式
 SOF = 0xA5
@@ -17,6 +16,7 @@ LEN_SOF = 1
 LEN_DATA_LENGTH = 2
 LEN_SEQ = 1
 LEN_CMD_ID = 2
+LEN_HEADER = LEN_SOF + LEN_CMD_ID + LEN_SEQ + 1 # 1字节CRC8
 
 LEN_ACCESS = 8
 LEN_OTA_LENGTH = 2

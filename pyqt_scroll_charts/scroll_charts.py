@@ -59,6 +59,35 @@ def _normalize_chart_config(cfg: Union[ChartConfig, Mapping[str, Any]]) -> Chart
     )
 
 
+def _to_python_scalar(value: Any) -> Any:
+    """Convert numpy scalar types to native Python scalars."""
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _normalize_values_list(values: Any) -> list:
+    """Normalize incoming sample containers to a Python list for signal transport."""
+    if isinstance(values, np.ndarray):
+        if values.ndim == 0:
+            return [_to_python_scalar(values.item())]
+        return [_to_python_scalar(v) for v in values.reshape(-1)]
+
+    if isinstance(values, list):
+        return [_to_python_scalar(v) for v in values]
+
+    if isinstance(values, tuple):
+        return [_to_python_scalar(v) for v in values]
+
+    if hasattr(values, '__iter__') and not isinstance(values, (str, bytes, bytearray)):
+        try:
+            return [_to_python_scalar(v) for v in list(values)]
+        except Exception:
+            pass
+
+    return [_to_python_scalar(values)]
+
+
 class ScrollChartManager(QWidget):
     """可复用的滚动图表管理器。
 
@@ -76,7 +105,7 @@ class ScrollChartManager(QWidget):
     通过 ``add_values(chart_idx, values_list)`` 或 ``add_value(chart_idx, series_idx, value)``
     在外部推入新数据点以更新图表。
     """
-    addValuesSignal = pyqtSignal(int, list)
+    addValuesSignal = pyqtSignal(int, object)
     addValueSignal = pyqtSignal(int, int, object)
     def __init__(self, chart_configs, chart_height=200, parent=None):
         super().__init__(parent)
@@ -173,7 +202,8 @@ class ScrollChartManager(QWidget):
 
     def add_values(self, chart_idx, values_list):
         """线程安全版本：无论在哪个线程调用，都会在主线程执行更新。"""
-        self.addValuesSignal.emit(chart_idx, values_list)
+        safe_chart_idx = int(_to_python_scalar(chart_idx))
+        self.addValuesSignal.emit(safe_chart_idx, values_list)
 
     def refresh_fft(self):
         """手动绘制一次所有 FFT 图。"""
@@ -192,7 +222,10 @@ class ScrollChartManager(QWidget):
 
     def add_value(self, chart_idx, series_idx, value):
         """线程安全版本：无论在哪个线程调用，都会在主线程执行更新。"""
-        self.addValueSignal.emit(chart_idx, series_idx, value)
+        safe_chart_idx = int(_to_python_scalar(chart_idx))
+        safe_series_idx = int(_to_python_scalar(series_idx))
+        safe_value = _to_python_scalar(value)
+        self.addValueSignal.emit(safe_chart_idx, safe_series_idx, safe_value)
 
     def draw_fft(self):
         """兼容式别名：手动绘制一次 FFT 图。"""
