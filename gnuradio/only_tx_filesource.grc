@@ -288,7 +288,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '0'
+    attenuation1: '20'
     bandwidth: signal_bandwidth_1
     buffer_size: '3276800'
     comment: ''
@@ -301,7 +301,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.4
+    uri: 192.168.2.1
   states:
     bus_sink: false
     bus_source: false
