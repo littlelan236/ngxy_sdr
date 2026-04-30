@@ -8,15 +8,16 @@ from enum import Enum
 from pathlib import Path
 import sys
 import time
-
 import numpy as np
+import logging
+from dataclasses import dataclass
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
 	sys.path.insert(0, str(CURRENT_DIR))
 
-from pluto_ctrl import pluto_ctrl_rx
+from pluto_ctrl import pluto_ctrl_rx, rtl_sdr_ctrl
 from fftfilter import apply_fft_filter
 from frame_decoder_direct import frame_decoder_direct
 from def_status import dict_to_dataclass
@@ -39,15 +40,17 @@ try:
 except ImportError:
     from pyqt_scroll_charts import ChartConfig, ScrollChartsApp
 
-PLUTO_IP_ADDR_RX1 = "ip:192.168.2.5"
-SAMPLE_RATE = 1e6
-CENTER_FREQ = 433.2e6
-NUM_SAMPS = 1e6
-RX_GAIN = 70.0
-AGC_MODE = "slow_attack"
-
 SYMBOLS_PER_SAMPLE = 52.0
-DISCRIMINATOR_GAIN = 1.0
+
+@dataclass
+class RxConfig:
+	ip_addr : str | None = None
+	sample_rate: float = 1e6
+	center_freq: float = 433.2e6
+	num_samps: int = 1e6
+	rx_gain: float = 70.0
+	agc_mode: str = "slow_attack"
+	descriminator_gain: float = 1.0
 
 qt_gui_configs = [
     # 时域图
@@ -68,7 +71,7 @@ qt_gui_configs = [
         hline_values=[],
         title='信号频谱',
         plot_mode='fft',
-        sample_rate=SAMPLE_RATE,
+        sample_rate=1e6,
         fft_size=1024,
         fft_shift=True,
         fft_db=True,
@@ -154,7 +157,12 @@ def process_chunk(
 	qt_app.add_values(3, synced_symbols) if qt_app else None
 	return bpsk_bits_from_symbols(synced_symbols)
 
-def main() -> None:
+def main(device, rx_config) -> None:
+	"""
+	主函数：初始化 SDR 接收器、信号处理模块和可视化界面，进入主循环处理数据并发布 ROS2 消息。
+	@param device: SDR 设备类型， "pluto" 或 "rtlsdr"
+	@param rx_config: 接收配置
+	"""
 	qt_app = ScrollChartsApp(qt_gui_configs, uniform_height=320)
 	qt_app.show()
 
@@ -168,17 +176,26 @@ def main() -> None:
 			ros_node = None
 			print(f"ROS2 adaptor unavailable: {exc}")
 
-	rx_ctrl = pluto_ctrl_rx(
-		ip_addr=PLUTO_IP_ADDR_RX1,
-		sample_rate=SAMPLE_RATE,
-		center_freq=CENTER_FREQ,
-		num_samps=NUM_SAMPS,
-		rx_hardwaregain_chan0=RX_GAIN,
-		agc_mode=AGC_MODE,
-	)
+	if device == "pluto":
+		rx_ctrl = pluto_ctrl_rx(
+			ip_addr=rx_config.ip_addr,
+			sample_rate=rx_config.sample_rate,
+			center_freq=rx_config.center_freq,
+			num_samps=rx_config.num_samps,
+			rx_hardwaregain_chan0=rx_config.rx_gain,
+			agc_mode=rx_config.agc_mode,
+		)
+	else:
+		rx_ctrl = rtl_sdr_ctrl(
+			sample_rate=rx_config.sample_rate,
+			center_freq=rx_config.center_freq,
+			num_samps=rx_config.num_samps,
+		 	rx_gain='auto' if rx_config.agc_mode != 'manual' else rx_config.rx_gain,
+		)
+
 
 	discriminator = QuadratureDiscriminator(
-		QuadratureDiscriminatorConfig(gain=DISCRIMINATOR_GAIN)
+		QuadratureDiscriminatorConfig(gain=rx_config.discriminator_gain)
 	)
 	symbol_sync = MMSymbolSynchronizer(
 		MMSymbolSyncConfig(omega=SYMBOLS_PER_SAMPLE)
@@ -235,9 +252,17 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-	import logging
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
+	rx_config = RxConfig(
+		ip_addr=None,
+		sample_rate=1e6,
+		center_freq=433.2e6,
+		num_samps=1e6,
+		rx_gain=70.0,
+		agc_mode="auto",
+		descriminator_gain=1.0,
+	)
 	try:
 		main()
 	except KeyboardInterrupt:

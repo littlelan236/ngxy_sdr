@@ -42,19 +42,19 @@ class pluto_ctrl_tx:
 
 
 class rtl_sdr_ctrl:
-	def __init__(self, sample_rate=1e6, center_freq=433e6, num_samps=32767):
+	def __init__(self, sample_rate=1e6, center_freq=433.2e6, num_samps=32767, rx_gain='auto'):
 		self.sample_rate = int(sample_rate)
 		self.center_freq = int(center_freq)
 		self.num_samps = int(num_samps)
+		self.rx_gain = rx_gain
 
 		self.sdr = RtlSdr()
 		self.sdr.sample_rate = self.sample_rate # Hz
 		self.sdr.center_freq = self.center_freq   # Hz
 		self.sdr.freq_correction = 60  # PPM
-		self.sdr.gain = 'auto'
+		self.sdr.gain = self.rx_gain
 
-		self.sdr.read_samples(1024)
-		self.sdr.close()
+		self.sdr.read_samples(self.num_samps)  # discard the first few samples
 
 	def rx(self):
 		ret = self.sdr.read_samples(self.num_samps)
