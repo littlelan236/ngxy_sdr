@@ -1,6 +1,9 @@
 import subprocess
 import re
 
+# Available contexts:
+        # 0: 0456:b673 (Analog Devices Inc. PlutoSDR (ADALM-PLUTO)), serial=104473023196000bf5ff1a00aae12c3ca8 [usb:1.25.5]
+
 def get_new_pluto_usb():
     """获取新插入的 PlutoSDR 设备的 USB 地址"""
     try:
