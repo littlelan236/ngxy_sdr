@@ -2,13 +2,14 @@ from numpy import pi
 # from gnuradio.filter import firdes
 from enum import Enum
 
-class TargetSite(Enum): # 要使用的信息波频率为哪一方的 即对方是什么颜色
+# 当前己方队伍选边
+class CurrentSite(Enum):
     RED = 0
     BLUE = 1
 
-sps = 52 # 现在在rx端是硬编码
-samp_rate = 1e6 # 现在在rx端是硬编码
-bt = 0.35 # 现在在rx端是硬编码
+SPS = 52.0
+SAMP_RATE = 1e6
+BT = 0.35
 
 FC_RED = 433.2e6
 FC_BLUE = 433.92e6
@@ -29,15 +30,15 @@ BW_1 = 940466
 BW_2 = 860402
 BW_3 = 250116
 
-DF_SIG = SENSITIVITY_SIG * samp_rate / (2 * pi)
-DF_1 = SENSITIVITY_1 * samp_rate / (2 * pi)
-DF_2 = SENSITIVITY_2 * samp_rate / (2 * pi)
-DF_3 = SENSITIVITY_3 * samp_rate / (2 * pi)
+DF_SIG = SENSITIVITY_SIG * SAMP_RATE / (2 * pi)
+DF_1 = SENSITIVITY_1 * SAMP_RATE / (2 * pi)
+DF_2 = SENSITIVITY_2 * SAMP_RATE / (2 * pi)
+DF_3 = SENSITIVITY_3 * SAMP_RATE / (2 * pi)
 
-BW_SIG = 2 * (DF_SIG + samp_rate / sps)
-BW_1 = 2 * (DF_1 + samp_rate / sps)
-BW_2 = 2 * (DF_2 + samp_rate / sps)
-BW_3 = 2 * (DF_3 + samp_rate / sps)
+BW_SIG = 2 * (DF_SIG + SAMP_RATE / SPS)
+BW_1 = 2 * (DF_1 + SAMP_RATE / SPS)
+BW_2 = 2 * (DF_2 + SAMP_RATE / SPS)
+BW_3 = 2 * (DF_3 + SAMP_RATE / SPS)
 
 GAIN_SIG = 1 / SENSITIVITY_SIG
 GAIN_1 = 1 / SENSITIVITY_1
