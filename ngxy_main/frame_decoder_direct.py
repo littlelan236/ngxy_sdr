@@ -1,16 +1,3 @@
-"""Direct-mode decoder optimized for bursty, large bit chunks.
-
-This decoder is designed for pipelines where push_bits is called infrequently
-(e.g. every ~1s) but each call carries a large number of bits (1e4~1e5+).
-
-Key differences from the legacy decoder:
-- No ZMQ worker thread.
-- Bit buffer keeps only a short carry window required for cross-chunk OTA sync.
-- OTA payload extraction is done per incoming chunk (+carry), then payload bytes
-  are appended to a serial-byte parser buffer.
-- Serial parser keeps only incomplete tail, avoiding repeated rescans.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -51,8 +38,6 @@ _ACCESS_BITS_JAMMING = np.unpackbits(
 
 
 class frame_decoder_direct:
-    """Frame decoder tailored for large, sparse direct bit input."""
-
     def __init__(
         self,
         type: str = "signal",
@@ -95,25 +80,38 @@ class frame_decoder_direct:
         # Ensure strict bit values 0/1.
         return np.bitwise_and(arr, 1)
 
-    def _extract_ota_payloads(self, bits_stream: np.ndarray) -> list[bytes]:
+    def _extract_ota_payloads(self, bits_stream: np.ndarray) -> tuple[list[bytes], int]:
         if bits_stream.size < self._access_bits.size:
-            return []
+            return [], 0
 
         corr = np.correlate(bits_stream, self._access_bits, mode="valid")
         starts = np.flatnonzero(corr == self._access_corr)
         if starts.size == 0:
-            return []
+            return [], 0
 
+        # 使用consume逻辑，返回完整payload列表和最后消费位置，避免重复处理重叠的帧头
         payloads: list[bytes] = []
+        last_consumed_end = 0
+        earliest_incomplete_start: int | None = None
         for idx in starts:
             p0 = int(idx) + self._payload_start_bits
             p1 = p0 + self._payload_bits
             if p1 > bits_stream.size:
+                if earliest_incomplete_start is None or int(idx) < earliest_incomplete_start:
+                    earliest_incomplete_start = int(idx)
                 continue
             payload_bytes = np.packbits(bits_stream[p0:p1]).tobytes()
             if len(payload_bytes) == LEN_OTA_PAYLOAD:
                 payloads.append(payload_bytes)
-        return payloads
+                if p1 > last_consumed_end:
+                    last_consumed_end = p1
+
+        if earliest_incomplete_start is not None:
+            carry_start = max(last_consumed_end, earliest_incomplete_start)
+        else:
+            carry_start = last_consumed_end
+
+        return payloads, carry_start
     
     def _decode_frame_serial(self, frame_serial: bytes) -> dict | None:
         if self._crc16_enabled and not verify_crc16_check_sum(frame_serial, ENDIAN):
@@ -216,7 +214,7 @@ class frame_decoder_direct:
         return out
 
     def push_bits(self, bits: np.ndarray | list | tuple) -> list[dict]:
-        """Push one large direct bit chunk and decode available frames immediately."""
+        """外部调用接口 将输入的比特流进行空口帧识别、串口帧识别 返回解析出的信息（字典格式）"""
 
         chunk = self._normalize_bits(bits)
         if chunk.size == 0:
@@ -229,25 +227,31 @@ class frame_decoder_direct:
             stream = np.concatenate([self._bit_carry, chunk])
             logging.log(logging.DEBUG, f"[frame_decoder_direct] concat stream size: {stream.size}")
 
-        payloads = self._extract_ota_payloads(stream)
+        payloads, carry_start = self._extract_ota_payloads(stream)
         for p in payloads:
             self._payload_buffer.extend(p)
         if len(payloads) > 0:
-            logging.log(logging.DEBUG, f"[frame_decoder_direct] extracted {len(payloads)} OTA payloads")
+            logging.log(logging.INFO, f"[frame_decoder_direct] extracted {len(payloads)} OTA payloads")
         else:
             logging.log(logging.DEBUG, f"[frame_decoder_direct] no OTA payload extracted")
         
         logging.log(logging.DEBUG, f"[frame_decoder_direct] payload buffer size: {len(self._payload_buffer)}")
 
-        # Update bit carry for cross-chunk frame recovery.
-        if stream.size > self._bit_carry_len:
-            self._bit_carry = stream[-self._bit_carry_len:].copy()
+        # 仅保留未完成/未识别出的尾部 bits，避免重复保存已消费的内容
+        if carry_start >= stream.size:
+            self._bit_carry = np.array([], dtype=np.uint8)
         else:
-            self._bit_carry = stream.copy()
+            self._bit_carry = stream[carry_start:].copy()
+
+        if self._bit_carry.size > self._bit_carry_len:
+            self._bit_carry = self._bit_carry[-self._bit_carry_len:].copy()
         logging.log(logging.DEBUG, f"[frame_decoder_direct] updated bit carry size: {self._bit_carry.size}")
 
         decoded = self._scan_serial_frames()
-        logging.log(logging.DEBUG, f"[frame_decoder_direct] decoded frames count: {len(decoded)}")
+        if len(decoded) > 0:
+            logging.log(logging.INFO, f"[frame_decoder_direct] decoded frames count: {len(decoded)}")
+        else:
+            logging.log(logging.DEBUG, f"[frame_decoder_direct] decoded frames count 0")
         if decoded and self._on_frame_decoded:
             try:
                 self._on_frame_decoded(decoded)

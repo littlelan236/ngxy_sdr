@@ -193,17 +193,21 @@ def process_chunk(
 	decoded_frames = []
 	if decoder is not None and bits.size > 0:
 		decoded_frames = decoder.push_bits(bits)
+	if len(decoded_frames) > 0:
+		logging.log(logging.INFO, f"frame decoded: {decoded_frames}")
+	logging.log(logging.DEBUG, f"Processed chunk: {len(complex_samples)} samples, {len(bits)} bits, {len(decoded_frames)} frames decoded")
 	return bits, decoded_frames
 
 def main(devices:DeviceConfig, 
-		 device_timeout=20, 
 		 inf_level_timeout=5, 
 		 device_search_timeout=10, 
 		 main_cycle_update_interval=0.5) -> None:
 	"""
 	负责管理信号接收的两个子线程
+	在默认的接收设备报错时，切换到备用设备
+	若备用设备已占用，则尝试重启当前设备一次
+	备用设备报错会一直尝试重启
 	@param devices: 配置设备使用
-	@param device_timeout: sdr设备断连多长时间后切换到备用设备
 	@param inf_level_timeout: 干扰波多长时间解析失败切换干扰等级
 	@param device_search_timeout: iio_info搜索设备的超时时间
 	@main_cycle_update_interval: 主循环时间间隔
@@ -215,8 +219,13 @@ def main(devices:DeviceConfig,
 	thread_stop_events = {}
 	thread_devices = {}
 	last_decode_time = {}
+	restart_attempted = {}
 	exception_queue: Queue[tuple[str, Exception]] = Queue()
-	decode_queue: Queue[tuple[str, float]] = Queue()
+	last_decode_time_queue: Queue[tuple[str, float]] = Queue()
+	main_device_map = {
+		"rx_sig": devices.device_sig,
+		"rx_inf": devices.device_inf,
+	}
 
 	def _build_sig_config(device: str) -> RxConfig:
 		return RxConfig(
@@ -259,15 +268,18 @@ def main(devices:DeviceConfig,
 			with status_lock:
 				thread_status[name] = "error"
 			logging.exception("worker %s failed", name)
+			print(f"worker {name} failed: {exc}")
 		else:
 			with status_lock:
 				thread_status[name] = "stopped"
 
 	def _start_worker(name: str, rx_config: RxConfig) -> None:
+		print(f"Starting worker {name} with device {rx_config.device}...")
+		logging.log(logging.INFO, f"Starting worker {name} with device {rx_config.device}...")
 		stop_event = threading.Event()
 
 		def _on_decoded(_frames: list) -> None:
-			decode_queue.put((name, time.time()))
+			last_decode_time_queue.put((name, time.time()))
 
 		thread = threading.Thread(
 			target=_worker_thread,
@@ -281,9 +293,12 @@ def main(devices:DeviceConfig,
 			thread_devices[name] = rx_config.device
 			thread_status[name] = "starting"
 			last_decode_time[name] = time.time()
+			restart_attempted.setdefault(name, False)
 		thread.start()
 
 	def _stop_worker(name: str, join_timeout: float = 2.0) -> bool:
+		print(f"Stopping worker {name}...")
+		logging.log(logging.INFO, f"Stopping worker {name}...")
 		with status_lock:
 			stop_event = thread_stop_events.get(name)
 			thread = thread_threads.get(name)
@@ -295,10 +310,14 @@ def main(devices:DeviceConfig,
 		return True
 
 	def _backup_in_use_by() -> str | None:
+		print("Checking if backup device is in use...")
+		logging.log(logging.INFO, "Checking if backup device is in use...")
 		with status_lock:
 			for name, device in thread_devices.items():
 				thread = thread_threads.get(name)
 				if thread is not None and thread.is_alive() and device == devices.device_backup:
+					print(f"Backup device is currently in use by {name}")
+					logging.log(logging.INFO, f"Backup device is currently in use by {name}")
 					return name
 		return None
 
@@ -315,24 +334,26 @@ def main(devices:DeviceConfig,
 		# 更新解析时间
 		try:
 			while True:
-				name, ts = decode_queue.get_nowait()
+				name, ts = last_decode_time_queue.get_nowait()
 				with status_lock:
 					last_decode_time[name] = ts
+					restart_attempted[name] = False
 		except Empty:
 			pass
-
 		# 处理异常，必要时切换到备用设备
 		try:
 			while True:
 				name, exc = exception_queue.get_nowait()
 				print(f"Worker {name} error: {exc}")
 				logging.error("Worker %s error: %s", name, exc)
+				print(f"Attempting to switch {name} to backup device...")
+				logging.log(logging.INFO, f"Worker {name} error: {exc}, attempting to switch to backup device if available.")
 
+				with status_lock:
+					current_device = thread_devices.get(name)
 				backup_owner = _backup_in_use_by()
-				if (
-					devices.device_backup
-					and backup_owner is None
-				):
+				# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
+				if devices.device_backup and backup_owner is None:
 					_stop_worker(name)
 					if name == "rx_inf":
 						rx_conf_inf = _build_inf_config(inf_level, devices.device_backup)
@@ -340,6 +361,23 @@ def main(devices:DeviceConfig,
 					else:
 						rx_conf_sig = _build_sig_config(devices.device_backup)
 						_start_worker("rx_sig", rx_conf_sig)
+					print(f"Switched {name} to backup device: {devices.device_backup}")
+					logging.info(f"Switched {name} to backup device: {devices.device_backup}")
+				# 若当前备用设备被占用，尝试重启一次当前设备
+				elif backup_owner is not None and current_device == main_device_map.get(name):
+					with status_lock:
+						already_tried = restart_attempted.get(name, False)
+					if not already_tried:
+						with status_lock:
+							restart_attempted[name] = True
+						_stop_worker(name)
+						main_device = main_device_map.get(name)
+						if name == "rx_inf":
+							rx_conf_inf = _build_inf_config(inf_level, main_device)
+							_start_worker("rx_inf", rx_conf_inf)
+						else:
+							rx_conf_sig = _build_sig_config(main_device)
+							_start_worker("rx_sig", rx_conf_sig)
 		except Empty:
 			pass
 
@@ -380,9 +418,11 @@ def work(
 			ros_node = WirelessRos2AdaptorNodeThreaded()
 			ros_node.start()
 			print("ROS2 wireless adaptor started")
+			logging.info("ROS2 wireless adaptor started")
 		except Exception as exc:
 			ros_node = None
 			print(f"ROS2 adaptor unavailable: {exc}")
+			logging.log(logging.ERROR, f"ROS2 adaptor unavailable: {exc}")
 
 	device = rx_config.device
 	if device != "rtlsdr": # 使用pluto 需要先用序列号提取对应的iio_context的usb标识
@@ -427,42 +467,58 @@ def work(
 		crc16_enabled=True,
 	)
 
-	print("main_rx started, press Ctrl+C to stop.")
+	logging.log(logging.INFO, f"Worker started with config: {rx_config}")
+	print(f"Worker started with config: {rx_config}")
 
 	try:
-		while True:
-			if stop_event is not None and stop_event.is_set():
-				break
-			qt_app.process_events()
-			samples = rx_ctrl.rx()
-			if samples is None:
+		record_file = None
+		try:
+			if RECORD_SIGNAL_ON:
+				timestamp = time.strftime("%Y%m%d_%H%M%S")
+				filename = f"record_{rx_config.type}_{timestamp}.iq"
+				print(f"Recording signal to {filename}")
+				record_file = open(filename, "wb")
+				logging.log(logging.INFO, f"Recording signal to {filename}")
+				print(f"Recording signal to {filename}")
+			while True:
+				if stop_event is not None and stop_event.is_set():
+					break
 				qt_app.process_events()
-				time.sleep(0.01)
-				print("maincycle continue")
-				continue
+				samples = rx_ctrl.rx()
+				if record_file is not None and samples is not None:
+					samples.tofile(record_file)
+				if samples is None:
+					qt_app.process_events()
+					time.sleep(0.01)
+					continue
 
-			bits, decoded_frames = process_chunk(
-				samples=samples,
-				pre_taps=TAPS_LPF_PRE,
-				post_taps=TAPS_LPF,
-				discriminator=discriminator,
-				symbol_sync=symbol_sync,
-				decoder=decoder,
-				qt_app=qt_app,
-			)
+				bits, decoded_frames = process_chunk(
+					samples=samples,
+					pre_taps=TAPS_LPF_PRE,
+					post_taps=TAPS_LPF,
+					discriminator=discriminator,
+					symbol_sync=symbol_sync,
+					decoder=decoder,
+					qt_app=qt_app,
+				)
 
-			print(f"maincycle running...{time.time():.2f}")
-			qt_app.process_events()
-
-			if bits.size == 0:
 				qt_app.process_events()
-				continue
 
-			if decoded_frames:
-				if on_decoded is not None:
-					on_decoded(decoded_frames)
-				print(f"frames({len(decoded_frames)}): {decoded_frames}")
+				if bits.size == 0:
+					qt_app.process_events()
+					continue
+
+				if decoded_frames:
+					if on_decoded is not None:
+						on_decoded(decoded_frames)
+		finally:
+			if record_file is not None:
+				record_file.close()
+				logging.log(logging.INFO, "Finished recording signal.")
+				print("Finished recording signal.")
 	finally:
 		if ros_node is not None:
 			ros_node.stop()
 
+if __name__ == "__main__":
+	main(device_conf)
