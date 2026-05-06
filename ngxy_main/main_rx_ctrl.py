@@ -42,6 +42,7 @@ import threading
 from queue import Queue, Empty
 import numpy as np
 import logging
+from PyQt5 import QtWidgets
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -56,11 +57,7 @@ from quadrate_discriminator import QuadratureDiscriminator, QuadratureDiscrimina
 from symbol_sync import MMSymbolSynchronizer, MMSymbolSyncConfig, bpsk_bits_from_symbols
 from def_taps import *
 from def_signal import *
-
-try:
-	from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
-except Exception:
-	WirelessRos2AdaptorNodeThreaded = None
+from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
 
 # Ensure workspace root is importable when running this file directly.
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
@@ -202,7 +199,9 @@ def main(devices:DeviceConfig,
 		 inf_level_timeout=5, 
 		 device_search_timeout=10, 
 		 main_cycle_update_interval=0.5,
-		 faction_timeout=15) -> None:
+		 faction_timeout=15,
+		 qt_apps: dict[str, ScrollChartsApp] | None = None,
+		 stop_event: threading.Event | None = None) -> None:
 	"""
 	负责管理信号接收的两个子线程
 	在默认的接收设备报错时，切换到备用设备
@@ -224,10 +223,14 @@ def main(devices:DeviceConfig,
 	exception_queue: Queue[tuple[str, Exception]] = Queue()
 	last_decode_time_queue: Queue[tuple[str, float]] = Queue()
 	ros_level_queue: Queue[int] = Queue()
+	qt_apps = qt_apps or {}
 	main_device_map = {
 		"rx_sig": devices.device_sig,
 		"rx_inf": devices.device_inf,
 	}
+
+	def _should_stop() -> bool:
+		return stop_event is not None and stop_event.is_set()
 
 	def _on_ros_encrypt_level_change(new_level: int) -> None:
 		ros_level_queue.put(new_level)
@@ -258,6 +261,7 @@ def main(devices:DeviceConfig,
 		rx_config: RxConfig,
 		stop_event: threading.Event,
 		on_decoded: Callable[[list], None] | None,
+		qt_app: ScrollChartsApp | None,
 	):
 		try:
 			with status_lock:
@@ -267,6 +271,8 @@ def main(devices:DeviceConfig,
 				search_timeout=device_search_timeout,
 				stop_event=stop_event,
 				on_decoded=on_decoded,
+				qt_app=qt_app,
+				visualize_on=VISUALIZE_ON,
 			)
 		except Exception as exc:
 			exception_queue.put((name, exc))
@@ -282,6 +288,7 @@ def main(devices:DeviceConfig,
 		print(f"Starting worker {name} with device {rx_config.device}...")
 		logging.log(logging.INFO, f"Starting worker {name} with device {rx_config.device}...")
 		stop_event = threading.Event()
+		qt_app = qt_apps.get(name) if VISUALIZE_ON else None
 
 		def _on_decoded(_frames: list) -> None:
 			last_decode_time_queue.put((name, time.time()))
@@ -289,7 +296,7 @@ def main(devices:DeviceConfig,
 		thread = threading.Thread(
 			target=_worker_thread,
 			name=name,
-			args=(name, rx_config, stop_event, _on_decoded),
+			args=(name, rx_config, stop_event, _on_decoded, qt_app),
 			daemon=True,
 		)
 		with status_lock:
@@ -332,6 +339,8 @@ def main(devices:DeviceConfig,
 	) -> tuple[bool, Exception | None]:
 		start_time = time.time()
 		while time.time() - start_time < timeout_sec:
+			if _should_stop():
+				return False, None
 			try:
 				while True:
 					name, ts = last_decode_time_queue.get_nowait()
@@ -411,7 +420,11 @@ def main(devices:DeviceConfig,
 	if current_site is None:
 		probe_timeout = inf_level_timeout
 		while True:
+			if _should_stop():
+				return
 			for site in (CurrentSite.RED, CurrentSite.BLUE):
+				if _should_stop():
+					return
 				device_candidates = [devices.device_sig]
 				if (
 					devices.device_backup
@@ -470,6 +483,8 @@ def main(devices:DeviceConfig,
 	# 主循环
 	try:
 		while True:
+			if _should_stop():
+				break
 			# 更新解析时间
 			try:
 				while True:
@@ -561,6 +576,10 @@ def main(devices:DeviceConfig,
 
 			time.sleep(main_cycle_update_interval)
 	finally:
+		with status_lock:
+			worker_names = list(thread_threads.keys())
+		for name in worker_names:
+			_stop_worker(name)
 		if ros_listener is not None:
 			ros_listener.stop()
 
@@ -570,14 +589,14 @@ def work(
 	search_timeout=10,
 	stop_event: threading.Event | None = None,
 	on_decoded: Callable[[list], None] | None = None,
+	qt_app: ScrollChartsApp | None = None,
+	visualize_on: bool = VISUALIZE_ON,
 ) -> None:
 	"""
 	接收信号线程
 	包括硬件控制 信号处理 发送ros信息 可视化
 	"""
-	# 初始化qt可视化
-	qt_app = ScrollChartsApp(qt_gui_configs, uniform_height=320)
-	qt_app.show()
+	visualize_on = bool(visualize_on and qt_app is not None)
 
 	# 初始化ros通信节点
 	ros_node = None
@@ -651,12 +670,10 @@ def work(
 			while True:
 				if stop_event is not None and stop_event.is_set():
 					break
-				qt_app.process_events()
 				samples = rx_ctrl.rx()
 				if record_file is not None and samples is not None:
 					samples.tofile(record_file)
 				if samples is None:
-					qt_app.process_events()
 					time.sleep(0.01)
 					continue
 
@@ -668,12 +685,10 @@ def work(
 					symbol_sync=symbol_sync,
 					decoder=decoder,
 					qt_app=qt_app,
+					visualize_on=visualize_on,
 				)
 
-				qt_app.process_events()
-
 				if bits.size == 0:
-					qt_app.process_events()
 					continue
 
 				if decoded_frames:
@@ -689,4 +704,29 @@ def work(
 			ros_node.stop()
 
 if __name__ == "__main__":
-	main(device_conf)
+	if VISUALIZE_ON:
+		app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+		qt_apps = {
+			"rx_sig": ScrollChartsApp(qt_gui_configs, uniform_height=320),
+			"rx_inf": ScrollChartsApp(qt_gui_configs, uniform_height=320),
+		}
+		qt_apps["rx_sig"].window.setWindowTitle("rx_sig")
+		qt_apps["rx_inf"].window.setWindowTitle("rx_inf")
+		qt_apps["rx_sig"].show()
+		qt_apps["rx_inf"].show()
+
+		stop_event = threading.Event()
+		app.aboutToQuit.connect(stop_event.set)
+
+		main_thread = threading.Thread(
+			target=main,
+			args=(device_conf,),
+			kwargs={"qt_apps": qt_apps, "stop_event": stop_event},
+			daemon=True,
+		)
+		main_thread.start()
+		app.exec_()
+		stop_event.set()
+		main_thread.join(timeout=2.0)
+	else:
+		main(device_conf)
