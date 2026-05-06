@@ -58,7 +58,7 @@ from def_taps import *
 from def_signal import *
 
 try:
-	from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded
+	from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
 except Exception:
 	WirelessRos2AdaptorNodeThreaded = None
 
@@ -201,7 +201,8 @@ def process_chunk(
 def main(devices:DeviceConfig, 
 		 inf_level_timeout=5, 
 		 device_search_timeout=10, 
-		 main_cycle_update_interval=0.5) -> None:
+		 main_cycle_update_interval=0.5,
+		 faction_timeout=15) -> None:
 	"""
 	负责管理信号接收的两个子线程
 	在默认的接收设备报错时，切换到备用设备
@@ -222,21 +223,25 @@ def main(devices:DeviceConfig,
 	restart_attempted = {}
 	exception_queue: Queue[tuple[str, Exception]] = Queue()
 	last_decode_time_queue: Queue[tuple[str, float]] = Queue()
+	ros_level_queue: Queue[int] = Queue()
 	main_device_map = {
 		"rx_sig": devices.device_sig,
 		"rx_inf": devices.device_inf,
 	}
 
-	def _build_sig_config(device: str) -> RxConfig:
+	def _on_ros_encrypt_level_change(new_level: int) -> None:
+		ros_level_queue.put(new_level)
+
+	def _build_sig_config(device: str, site: CurrentSite) -> RxConfig:
 		return RxConfig(
 			device=device,
 			type="sig",
-			center_freq=FC_RED if CURRENT_SITE == CurrentSite.RED else FC_BLUE,
+			center_freq=FC_RED if site == CurrentSite.RED else FC_BLUE,
 			descriminator_gain=GAIN_SIG,
 		)
 
-	def _build_inf_config(level: int, device: str) -> RxConfig:
-		if CURRENT_SITE == CurrentSite.RED:
+	def _build_inf_config(level: int, device: str, site: CurrentSite) -> RxConfig:
+		if site == CurrentSite.RED:
 			freq_map = {1: FC_RED_1, 2: FC_RED_2, 3: FC_RED_3}
 		else:
 			freq_map = {1: FC_BLUE_1, 2: FC_BLUE_2, 3: FC_BLUE_3}
@@ -321,80 +326,243 @@ def main(devices:DeviceConfig,
 					return name
 		return None
 
+	def _wait_for_decode_or_error(
+		worker_name: str,
+		timeout_sec: float,
+	) -> tuple[bool, Exception | None]:
+		start_time = time.time()
+		while time.time() - start_time < timeout_sec:
+			try:
+				while True:
+					name, ts = last_decode_time_queue.get_nowait()
+					with status_lock:
+						last_decode_time[name] = ts
+						restart_attempted[name] = False
+					if name == worker_name:
+						return True, None
+			except Empty:
+				pass
+
+			other_errors: list[tuple[str, Exception]] = []
+			try:
+				while True:
+					name, exc = exception_queue.get_nowait()
+					if name == worker_name:
+						return False, exc
+					other_errors.append((name, exc))
+			except Empty:
+				pass
+			finally:
+				for item in other_errors:
+					exception_queue.put(item)
+
+			time.sleep(0.05)
+		return False, None
+
+	def _get_faction_with_timeout(
+		node: WirelessRos2AdaptorNodeThreaded,
+		timeout_sec: float,
+	) -> Faction:
+		result: dict[str, Faction] = {"faction": Faction.UNKNOWN}
+		done = threading.Event()
+
+		def _worker() -> None:
+			try:
+				result["faction"] = node.get_faction()
+			except Exception as exc:
+				logging.error("Faction query failed: %s", exc)
+			finally:
+				done.set()
+
+		thread = threading.Thread(target=_worker, daemon=True)
+		thread.start()
+		done.wait(timeout=timeout_sec)
+		if not done.is_set():
+			logging.warning("Faction query timed out after %.2f seconds", timeout_sec)
+			return Faction.UNKNOWN
+		return result["faction"]
+
+	# 尝试使用ros获取当前阵营信息
+	current_site: CurrentSite | None = None
+	if WirelessRos2AdaptorNodeThreaded is not None:
+		faction_node = None
+		try:
+			faction_node = WirelessRos2AdaptorNodeThreaded(namespace="main_ctrl_faction")
+			faction_node.start()
+			faction = _get_faction_with_timeout(faction_node, faction_timeout)
+			if faction == Faction.RED:
+				current_site = CurrentSite.RED
+				logging.log(logging.INFO, "Determined faction from ROS node: RED")
+				print("Determined faction from ROS node: RED")
+			elif faction == Faction.BLUE:
+				current_site = CurrentSite.BLUE
+				logging.log(logging.INFO, "Determined faction from ROS node: BLUE")
+				print("Determined faction from ROS node: BLUE")
+			else:
+				logging.warning("Failed to determine faction from ROS node, got: %s", faction)
+				print(f"Failed to determine faction from ROS node, got: {faction}")
+		# 关闭ros节点
+		finally:
+			if faction_node is not None:
+				faction_node.stop()
+
+	# 若未成功获取阵营信息（超时），则尝试对红蓝方信息波进行解调，成功则确定当前阵营信息
+	# 反复轮询尝试，包括主设备故障时启用备用设备的逻辑，直到成功解析才会往下走
+	if current_site is None:
+		probe_timeout = inf_level_timeout
+		while True:
+			for site in (CurrentSite.RED, CurrentSite.BLUE):
+				device_candidates = [devices.device_sig]
+				if (
+					devices.device_backup
+					and devices.device_backup != devices.device_sig
+				):
+					device_candidates.append(devices.device_backup)
+				for device in device_candidates:
+					rx_conf_sig = _build_sig_config(device, site)
+					_start_worker("rx_sig", rx_conf_sig)
+					decoded, error = _wait_for_decode_or_error("rx_sig", probe_timeout)
+					_stop_worker("rx_sig")
+					if decoded:
+						current_site = site
+						break
+					if error is not None and device == devices.device_sig:
+						continue
+				if current_site is not None:
+					break
+			if current_site is not None:
+				logging.log(logging.INFO, "Determined faction from ROS node: %s", current_site.name)
+				print(f"Determined faction from ROS node: {current_site.name}")
+				break
+
 	# 接收设备配置
 	inf_level = 1
-	rx_conf_sig = _build_sig_config(devices.device_sig)
-	rx_conf_inf = _build_inf_config(inf_level, devices.device_inf)
+	rx_conf_sig = _build_sig_config(devices.device_sig, current_site)
+	rx_conf_inf = _build_inf_config(inf_level, devices.device_inf, current_site)
 
-	_start_worker("rx_sig", rx_conf_sig)
+	# 启用监听ros节点进程监听干扰等级
+	ros_listener = None
+	if WirelessRos2AdaptorNodeThreaded is not None:
+		try:
+			ros_listener = WirelessRos2AdaptorNodeThreaded(
+				on_encrypt_level_change_callback=_on_ros_encrypt_level_change,
+				namespace="main_ctrl",
+			)
+			ros_listener.start()
+			logging.info("ROS2 level listener started")
+		except Exception as exc:
+			ros_listener = None
+			logging.error("ROS2 level listener unavailable: %s", exc)
+
+	# 启动信息波解析/干扰波解析的两个线程
+	with status_lock:
+		rx_sig_thread = thread_threads.get("rx_sig")
+	if rx_sig_thread is None or not rx_sig_thread.is_alive():
+		_start_worker("rx_sig", rx_conf_sig)
+	else:
+		_stop_worker("rx_sig")
+		_start_worker("rx_sig", rx_conf_sig)
 	_start_worker("rx_inf", rx_conf_inf)
 
+	logging.info("Main control started with initial config: rx_sig on %s, rx_inf on %s (inf level %d)", rx_conf_sig.device, rx_conf_inf.device, inf_level)
+	print(f"Main control started with initial config: rx_sig on {rx_conf_sig.device}, rx_inf on {rx_conf_inf.device} (inf level {inf_level})")
+	
 	# 主循环
-	while True:
-		# 更新解析时间
-		try:
-			while True:
-				name, ts = last_decode_time_queue.get_nowait()
-				with status_lock:
-					last_decode_time[name] = ts
-					restart_attempted[name] = False
-		except Empty:
-			pass
-		# 处理异常，必要时切换到备用设备
-		try:
-			while True:
-				name, exc = exception_queue.get_nowait()
-				print(f"Worker {name} error: {exc}")
-				logging.error("Worker %s error: %s", name, exc)
-				print(f"Attempting to switch {name} to backup device...")
-				logging.log(logging.INFO, f"Worker {name} error: {exc}, attempting to switch to backup device if available.")
-
-				with status_lock:
-					current_device = thread_devices.get(name)
-				backup_owner = _backup_in_use_by()
-				# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
-				if devices.device_backup and backup_owner is None:
-					_stop_worker(name)
-					if name == "rx_inf":
-						rx_conf_inf = _build_inf_config(inf_level, devices.device_backup)
-						_start_worker("rx_inf", rx_conf_inf)
-					else:
-						rx_conf_sig = _build_sig_config(devices.device_backup)
-						_start_worker("rx_sig", rx_conf_sig)
-					print(f"Switched {name} to backup device: {devices.device_backup}")
-					logging.info(f"Switched {name} to backup device: {devices.device_backup}")
-				# 若当前备用设备被占用，尝试重启一次当前设备
-				elif backup_owner is not None and current_device == main_device_map.get(name):
+	try:
+		while True:
+			# 更新解析时间
+			try:
+				while True:
+					name, ts = last_decode_time_queue.get_nowait()
 					with status_lock:
-						already_tried = restart_attempted.get(name, False)
-					if not already_tried:
-						with status_lock:
-							restart_attempted[name] = True
+						last_decode_time[name] = ts
+						restart_attempted[name] = False
+			except Empty:
+				pass
+			# 处理异常，必要时切换到备用设备
+			try:
+				while True:
+					name, exc = exception_queue.get_nowait()
+					print(f"Worker {name} error: {exc}")
+					logging.error("Worker %s error: %s", name, exc)
+					print(f"Attempting to switch {name} to backup device...")
+					logging.log(logging.INFO, f"Worker {name} error: {exc}, attempting to switch to backup device if available.")
+
+					with status_lock:
+						current_device = thread_devices.get(name)
+					backup_owner = _backup_in_use_by()
+					# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
+					if devices.device_backup and backup_owner is None:
 						_stop_worker(name)
-						main_device = main_device_map.get(name)
 						if name == "rx_inf":
-							rx_conf_inf = _build_inf_config(inf_level, main_device)
+							rx_conf_inf = _build_inf_config(inf_level, devices.device_backup, current_site)
 							_start_worker("rx_inf", rx_conf_inf)
 						else:
-							rx_conf_sig = _build_sig_config(main_device)
+							rx_conf_sig = _build_sig_config(devices.device_backup, current_site)
 							_start_worker("rx_sig", rx_conf_sig)
-		except Empty:
-			pass
+						print(f"Switched {name} to backup device: {devices.device_backup}")
+						logging.info(f"Switched {name} to backup device: {devices.device_backup}")
+					# 若当前备用设备被占用，尝试重启一次当前设备
+					elif backup_owner is not None and current_device == main_device_map.get(name):
+						logging.log(logging.INFO, f"Backup device {devices.device_backup} is currently in use by {backup_owner}, attempting to restart current device {current_device} for {name}.")	
+						print(f"Backup device {devices.device_backup} is currently in use by {backup_owner}, attempting to restart current device {current_device} for {name}...")
+						with status_lock:
+							already_tried = restart_attempted.get(name, False)
+						if not already_tried:
+							with status_lock:
+								restart_attempted[name] = True
+							_stop_worker(name)
+							main_device = main_device_map.get(name)
+							if name == "rx_inf":
+								rx_conf_inf = _build_inf_config(inf_level, main_device, current_site)
+								_start_worker("rx_inf", rx_conf_inf)
+							else:
+								rx_conf_sig = _build_sig_config(main_device, current_site)
+								_start_worker("rx_sig", rx_conf_sig)
+			except Empty:
+				pass
 
-		# 干扰等级轮换
-		with status_lock:
-			inf_thread = thread_threads.get("rx_inf")
-			inf_last = last_decode_time.get("rx_inf", time.time())
-			inf_device = thread_devices.get("rx_inf", devices.device_inf)
-		if inf_thread is not None and inf_thread.is_alive():
-			if time.time() - inf_last >= inf_level_timeout:
-				stopped = _stop_worker("rx_inf")
-				if stopped:
-					inf_level = 1 if inf_level >= 3 else inf_level + 1
-					rx_conf_inf = _build_inf_config(inf_level, inf_device)
-					_start_worker("rx_inf", rx_conf_inf)
+			# 处理 ROS 干扰等级变化
+			ros_level_applied = False
+			try:
+				while True:
+					new_level = ros_level_queue.get_nowait()
+					if new_level in (1, 2, 3) and new_level != inf_level:
+						stopped = _stop_worker("rx_inf")
+						if stopped:
+							inf_level = new_level
+							with status_lock:
+								inf_device = thread_devices.get("rx_inf", devices.device_inf)
+							rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
+							_start_worker("rx_inf", rx_conf_inf)
+							with status_lock:
+								last_decode_time["rx_inf"] = time.time()
+							ros_level_applied = True
+							logging.info("rx_inf switched to level %s due to ROS command", inf_level)
+							print(f"rx_inf switched to level {inf_level} due to ROS command")
+			except Empty:
+				pass
 
-		time.sleep(main_cycle_update_interval)
+			# 干扰等级轮换
+			if not ros_level_applied:
+				with status_lock:
+					inf_thread = thread_threads.get("rx_inf")
+					inf_last = last_decode_time.get("rx_inf", time.time())
+					inf_device = thread_devices.get("rx_inf", devices.device_inf)
+				if inf_thread is not None and inf_thread.is_alive():
+					if time.time() - inf_last >= inf_level_timeout:
+						stopped = _stop_worker("rx_inf")
+						if stopped:
+							inf_level = 1 if inf_level >= 3 else inf_level + 1
+							rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
+							_start_worker("rx_inf", rx_conf_inf)
+							logging.info("rx_inf switched to next level %d due to timeout", inf_level)
+							print(f"rx_inf switched to next level {inf_level} due to timeout")
+
+			time.sleep(main_cycle_update_interval)
+	finally:
+		if ros_listener is not None:
+			ros_listener.stop()
 
 
 def work(
@@ -415,7 +583,7 @@ def work(
 	ros_node = None
 	if WirelessRos2AdaptorNodeThreaded is not None:
 		try:
-			ros_node = WirelessRos2AdaptorNodeThreaded()
+			ros_node = WirelessRos2AdaptorNodeThreaded(namespace=f"worker_{rx_config.type}")
 			ros_node.start()
 			print("ROS2 wireless adaptor started")
 			logging.info("ROS2 wireless adaptor started")
