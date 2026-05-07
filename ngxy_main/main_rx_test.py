@@ -272,10 +272,10 @@ if __name__ == "__main__":
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
 	rx_config = RxConfig(
-		ip_addr="usb:1.15.5",
+		ip_addr="usb:1.19.5",
 		sample_rate=1e6,
 		center_freq=433.2e6,
-		num_samps=10000,
+		num_samps=100000,
 		rx_gain=70.0,
 		agc_mode="slow_attack",
 		descriminator_gain=1.0,

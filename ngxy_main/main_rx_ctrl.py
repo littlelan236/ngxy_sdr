@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # 选项
-VISUALIZE_ON = False
+VISUALIZE_ON = True
 RECORD_SIGNAL_ON = False
 
 # 参数
@@ -149,25 +149,17 @@ def _json_default(value):
 	return str(value)
 
 
-def _publish_ros_messages(ros_node, data_dict_list: list[dict]) -> None:
-	for data_dict in data_dict_list:
-		status_obj = dict_to_dataclass(data_dict)
-		if status_obj is None:
-			continue
-
-		msg_dict = {
-			"type": type(status_obj).__name__,
-			"data": status_obj,
-		}
-		json_str = json.dumps(msg_dict, default=_json_default, ensure_ascii=False)
-		print(f"Publishing ROS2 message: {json_str}")
-		logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
-		ros_node.publish_wireless_result(json_str)
+def _publish_ros_messages(ros_node, data_dict: dict) -> None:
+	json_str = json.dumps(data_dict, default=_json_default, ensure_ascii=False)
+	print(f"Publishing ROS2 message: {json_str}")
+	logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
+	ros_node.publish_wireless_result(json_str)
 
 
 def _build_ros_queue_callback(ros_queue: Queue[list[dict]]):
 	def _on_frame_decoded(data_dict_list: list[dict]):
-		ros_queue.put(data_dict_list)
+		for dict in data_dict_list:
+			ros_queue.put(dict)
 
 	return _on_frame_decoded
 
@@ -195,6 +187,10 @@ def process_chunk(
 
 	complex_samples = _to_1d_array(samples).astype(np.complex128, copy=False)
 	qt_app.add_values(0, complex_samples) if qt_app and visualize_on else None
+	# if pre_taps is not None:
+	# 	filtered_iq = apply_fft_filter(complex_samples, pre_taps)
+	# else:
+	# 	filtered_iq = complex_samples
 	filtered_iq = apply_fft_filter(complex_samples, pre_taps)
 	qt_app.add_values(1, [complex_samples, filtered_iq]) if qt_app and visualize_on else None
 	demodulated = discriminator.process(filtered_iq)
@@ -214,7 +210,7 @@ def process_chunk(
 def main(devices:DeviceConfig, 
 		 inf_level_timeout=5, 
 		 device_search_timeout=10, 
-		 main_cycle_update_interval=0.5,
+		 main_cycle_update_interval=0.1,
 		 faction_timeout=5,
 		 qt_apps: dict[str, ScrollChartsApp] | None = None,
 		 stop_event: threading.Event | None = None) -> None:
@@ -401,6 +397,40 @@ def main(devices:DeviceConfig,
 			if faction in (Faction.RED, Faction.BLUE) or _should_stop():
 				return faction
 		return faction
+
+	def _probe_faction_site(site: CurrentSite) -> CurrentSite | None:
+		primary_device = devices.device_sig
+		backup_device = (
+			devices.device_backup
+			if devices.device_backup and devices.device_backup != primary_device
+			else None
+		)
+
+		rx_conf_sig = _build_sig_config(primary_device, site)
+		_start_worker("rx_sig", rx_conf_sig)
+		decoded, error = _wait_for_decode_or_error("rx_sig", inf_level_timeout)
+		_stop_worker("rx_sig")
+		if decoded:
+			return site
+
+		if error is not None and backup_device is not None:
+			print(
+				f"Primary device {primary_device} failed for {site.name}, switching to backup device {backup_device}..."
+			)
+			logging.info(
+				"Primary device %s failed for %s, switching to backup device %s",
+				primary_device,
+				site.name,
+				backup_device,
+			)
+			rx_conf_sig = _build_sig_config(backup_device, site)
+			_start_worker("rx_sig", rx_conf_sig)
+			decoded, _ = _wait_for_decode_or_error("rx_sig", inf_level_timeout)
+			_stop_worker("rx_sig")
+			if decoded:
+				return site
+
+		return None
 	
 	# 尝试使用ros获取当前阵营信息
 	current_site: CurrentSite | None = None
@@ -437,34 +467,19 @@ def main(devices:DeviceConfig,
 	if current_site is None:
 		print("Attempting to determine faction from signal decoding...")
 		logging.log(logging.INFO, "Attempting to determine faction from signal decoding...")
-		probe_timeout = inf_level_timeout
 		while True:
 			if _should_stop():
 				return
 			for site in (CurrentSite.RED, CurrentSite.BLUE):
 				if _should_stop():
 					return
-				device_candidates = [devices.device_sig]
-				if (
-					devices.device_backup
-					and devices.device_backup != devices.device_sig
-				):
-					device_candidates.append(devices.device_backup)
-				for device in device_candidates:
-					rx_conf_sig = _build_sig_config(device, site)
-					_start_worker("rx_sig", rx_conf_sig)
-					decoded, error = _wait_for_decode_or_error("rx_sig", probe_timeout)
-					_stop_worker("rx_sig")
-					if decoded:
-						current_site = site
-						break
-					if error is not None and device == devices.device_sig:
-						continue
-				if current_site is not None:
+				probe_result = _probe_faction_site(site)
+				if probe_result is not None:
+					current_site = probe_result
 					break
 			if current_site is not None:
-				logging.log(logging.INFO, "Determined faction from ROS node: %s", current_site.name)
-				print(f"Determined faction from ROS node: {current_site.name}")
+				logging.log(logging.INFO, "Determined faction from signal decoding: %s", current_site.name)
+				print(f"Determined faction from signal decoding: {current_site.name}")
 				break
 
 	# 接收设备配置
@@ -487,6 +502,13 @@ def main(devices:DeviceConfig,
 	
 	# 主循环
 	try:
+		# 先清空当前消息队列
+		try:
+			while True:
+					ros_publish_queue.get_nowait()
+		except Empty:
+			pass
+
 		while True:
 			if _should_stop():
 				break
@@ -494,8 +516,8 @@ def main(devices:DeviceConfig,
 			if ros_node is not None:
 				try:
 					while True:
-						data_dict_list = ros_publish_queue.get_nowait()
-						_publish_ros_messages(ros_node, data_dict_list)
+						data_dict = ros_publish_queue.get_nowait()
+						_publish_ros_messages(ros_node, data_dict)
 				except Empty:
 					pass
 			else:
@@ -692,9 +714,15 @@ def work(
 					time.sleep(0.01)
 					continue
 
+				pre_taps = TAPS_LPF_PRE if rx_config.type == "sig" else (
+					TAPS_LPF_PRE_1 if rx_config.type == "inf" and rx_config.center_freq in (FC_RED_1, FC_BLUE_1) else (
+						TAPS_LPF_PRE_2 if rx_config.type == "inf" and rx_config.center_freq in (FC_RED_2, FC_BLUE_2) else 
+						TAPS_LPF_PRE_3
+					)
+				)
 				bits, decoded_frames = process_chunk(
 					samples=samples,
-					pre_taps=TAPS_LPF_PRE,
+					pre_taps=pre_taps,
 					post_taps=TAPS_LPF,
 					discriminator=discriminator,
 					symbol_sync=symbol_sync,

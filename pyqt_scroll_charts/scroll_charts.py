@@ -116,17 +116,11 @@ class ScrollChartManager(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         self._fft_items = []
+        self._time_items = []
 
-        self._fft_button = QPushButton("绘制频域", self)
-        self._fft_button.clicked.connect(self.refresh_fft)
-        layout.addWidget(self._fft_button)
-
-        # pause/resume button
-        self._pause_button = QPushButton("Pause", self)
-        self._pause_button.setCheckable(True)
-        self._pause_button.toggled.connect(self._toggle_pause)
-        layout.addWidget(self._pause_button)
-        self._paused = False
+        self._refresh_button = QPushButton("绘制一次", self)
+        self._refresh_button.clicked.connect(self.refresh_all)
+        layout.addWidget(self._refresh_button)
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
@@ -182,10 +176,12 @@ class ScrollChartManager(QWidget):
                     hline_values=hline_values,
                     title=title,
                 )
+                item.set_silent(True)
+                self._time_items.append(item)
             self.items.append(item)
             vlayout.addWidget(item)
 
-        self._fft_button.setEnabled(bool(self._fft_items))
+        self._refresh_button.setEnabled(bool(self.items))
 
         vlayout.addStretch()
         scroll.setWidget(container)
@@ -205,20 +201,16 @@ class ScrollChartManager(QWidget):
         safe_chart_idx = int(_to_python_scalar(chart_idx))
         self.addValuesSignal.emit(safe_chart_idx, values_list)
 
-    def refresh_fft(self):
-        """手动绘制一次所有 FFT 图。"""
+    def refresh_all(self):
+        """手动绘制一次所有图表。"""
+        for item in self._time_items:
+            item.refresh_now()
         for item in self._fft_items:
             item.refresh_fft()
 
-    # pause-control helpers
-    def set_paused(self, paused: bool):
-        """控制所有图表是否暂停刷新。"""
-        self._paused = paused
-        for item in self.items:
-            item.set_silent(paused)
-        self._pause_button.setText("Resume" if paused else "Pause")
-    def _toggle_pause(self, checked: bool):
-        self.set_paused(checked)
+    def refresh_fft(self):
+        """兼容式别名：手动绘制一次所有图表。"""
+        self.refresh_all()
 
     def add_value(self, chart_idx, series_idx, value):
         """线程安全版本：无论在哪个线程调用，都会在主线程执行更新。"""
@@ -229,7 +221,7 @@ class ScrollChartManager(QWidget):
 
     def draw_fft(self):
         """兼容式别名：手动绘制一次 FFT 图。"""
-        self.refresh_fft()
+        self.refresh_all()
 
 
 class MainWindow(QWidget):
@@ -266,11 +258,15 @@ class ScrollChartsApp:
 
     def refresh_fft(self):
         """手动绘制一次所有 FFT 图。"""
-        self.window.manager.refresh_fft()
+        self.window.manager.refresh_all()
 
     def draw_fft(self):
         """手动绘制一次所有 FFT 图。"""
-        self.window.manager.refresh_fft()
+        self.window.manager.refresh_all()
+
+    def refresh_all(self):
+        """手动绘制一次所有图表。"""
+        self.window.manager.refresh_all()
 
     def show(self):
         self.window.show()
