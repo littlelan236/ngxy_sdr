@@ -1,8 +1,8 @@
 import subprocess
 import re
 
-SERIAL_PLUTO_NANO_2 = "104473023196000bf5ff1a00aae12c3ca8"
-SERIAL_PLUTO_SDR = None
+SERIAL_PLUTO_NANO_2 = "03df62bf070f233332d76ab70f173b2b2a"
+SERIAL_PLUTO_SDR = "104473023196000bf5ff1a00aae12c3ca8"
 SERIAL_PLUTO_NANO_1 = None
 SERIAL_PLUTO_NANO_0 = None
 
@@ -31,5 +31,5 @@ def get_pluto_usb_by_serial(devices, target_serial):
 if __name__ == '__main__':
     # 获取所有设备
     all_devices = get_all_pluto_devices()
-    usb_name = get_pluto_usb_by_serial(SERIAL_PLUTO_NANO_2)
+    usb_name = get_pluto_usb_by_serial(all_devices, SERIAL_PLUTO_NANO_2)
     print(usb_name)

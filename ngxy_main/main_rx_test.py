@@ -12,6 +12,23 @@ import numpy as np
 import logging
 from dataclasses import dataclass
 
+import sys
+# 强制处理 librtlsdr 的依赖冲突 (libusb 符号问题)
+if sys.platform == "linux":
+    # 优先加载正确的 libusb 避免 undefined symbol: libusb_dev_mem_free
+    try:
+        import ctypes
+        # 尝试加载系统的 libusb
+        for path in ["/usr/lib/x86_64-linux-gnu/libusb-1.0.so.0", "libusb-1.0.so.0"]:
+            try:
+                ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+                break
+            except:
+                continue
+    except:
+        pass
+
+
 
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
@@ -195,7 +212,7 @@ def main(device, rx_config) -> None:
 
 
 	discriminator = QuadratureDiscriminator(
-		QuadratureDiscriminatorConfig(gain=rx_config.discriminator_gain)
+		QuadratureDiscriminatorConfig(gain=rx_config.descriminator_gain)
 	)
 	symbol_sync = MMSymbolSynchronizer(
 		MMSymbolSyncConfig(omega=SYMBOLS_PER_SAMPLE)
@@ -255,15 +272,15 @@ if __name__ == "__main__":
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
 	rx_config = RxConfig(
-		ip_addr=None,
+		ip_addr="usb:1.15.5",
 		sample_rate=1e6,
 		center_freq=433.2e6,
-		num_samps=1e6,
+		num_samps=10000,
 		rx_gain=70.0,
-		agc_mode="auto",
+		agc_mode="slow_attack",
 		descriminator_gain=1.0,
 	)
 	try:
-		main()
+		main("pluto", rx_config)
 	except KeyboardInterrupt:
 		print("stopped")

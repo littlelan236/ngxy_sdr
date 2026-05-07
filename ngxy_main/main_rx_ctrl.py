@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 选边
-CURRENT_SITE = CurrentSite.RED
-
 # 选项
-VISUALIZE_ON = True
-RECORD_SIGNAL_ON = True
+VISUALIZE_ON = False
+RECORD_SIGNAL_ON = False
 
 # 参数
 NUM_SAMPS = 1e5 # 10Hz
@@ -30,7 +27,21 @@ device_conf = DeviceConfig(
 
 # ------分界线------
 
-from __future__ import annotations
+import sys
+# 强制处理 librtlsdr 的依赖冲突 (libusb 符号问题)
+if sys.platform == "linux":
+    # 优先加载正确的 libusb 避免 undefined symbol: libusb_dev_mem_free
+    try:
+        import ctypes
+        # 尝试加载系统的 libusb
+        for path in ["/usr/lib/x86_64-linux-gnu/libusb-1.0.so.0", "libusb-1.0.so.0"]:
+            try:
+                ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+                break
+            except:
+                continue
+    except:
+        pass
 
 import json
 from enum import Enum
@@ -43,6 +54,7 @@ from queue import Queue, Empty
 import numpy as np
 import logging
 from PyQt5 import QtWidgets
+import rclpy
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -74,12 +86,12 @@ except ImportError:
 class RxConfig:
 	device : str = "pluto" # 或"rtlsdr"
 	type : str = "sig" # 或"inf"
-	center_freq: float
+	center_freq: float = FC_RED
 	sample_rate: float = SAMP_RATE
 	num_samps: int = NUM_SAMPS
 	rx_gain: float | None = None 
 	agc_mode: str = "slow_attack"
-	descriminator_gain: float = 1.0
+	discriminator_gain: float = 1.0
 
 # Qt可视化图表配置 两个线程都是用同样的配置
 qt_gui_configs = [
@@ -137,21 +149,25 @@ def _json_default(value):
 	return str(value)
 
 
-def _build_ros_publisher_callback(ros_node):
-	def _on_frame_decoded(data_dict_list: list[dict]):
-		for data_dict in data_dict_list:
-			status_obj = dict_to_dataclass(data_dict)
-			if status_obj is None:
-				continue
+def _publish_ros_messages(ros_node, data_dict_list: list[dict]) -> None:
+	for data_dict in data_dict_list:
+		status_obj = dict_to_dataclass(data_dict)
+		if status_obj is None:
+			continue
 
-			msg_dict = {
-				"type": type(status_obj).__name__,
-				"data": status_obj,
-			}
-			json_str = json.dumps(msg_dict, default=_json_default, ensure_ascii=False)
-			print(f"Publishing ROS2 message: {json_str}")
-			logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
-			ros_node.publish_wireless_result(json_str)
+		msg_dict = {
+			"type": type(status_obj).__name__,
+			"data": status_obj,
+		}
+		json_str = json.dumps(msg_dict, default=_json_default, ensure_ascii=False)
+		print(f"Publishing ROS2 message: {json_str}")
+		logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
+		ros_node.publish_wireless_result(json_str)
+
+
+def _build_ros_queue_callback(ros_queue: Queue[list[dict]]):
+	def _on_frame_decoded(data_dict_list: list[dict]):
+		ros_queue.put(data_dict_list)
 
 	return _on_frame_decoded
 
@@ -199,7 +215,7 @@ def main(devices:DeviceConfig,
 		 inf_level_timeout=5, 
 		 device_search_timeout=10, 
 		 main_cycle_update_interval=0.5,
-		 faction_timeout=15,
+		 faction_timeout=5,
 		 qt_apps: dict[str, ScrollChartsApp] | None = None,
 		 stop_event: threading.Event | None = None) -> None:
 	"""
@@ -212,6 +228,10 @@ def main(devices:DeviceConfig,
 	@param device_search_timeout: iio_info搜索设备的超时时间
 	@main_cycle_update_interval: 主循环时间间隔
 	"""
+	# 初始化 ROS
+	if not rclpy.ok():
+		rclpy.init(args=None)
+
 	# 线程间共享状态与异常上报
 	status_lock = threading.Lock()
 	thread_status = {}
@@ -223,6 +243,7 @@ def main(devices:DeviceConfig,
 	exception_queue: Queue[tuple[str, Exception]] = Queue()
 	last_decode_time_queue: Queue[tuple[str, float]] = Queue()
 	ros_level_queue: Queue[int] = Queue()
+	ros_publish_queue: Queue[list[dict]] = Queue()
 	qt_apps = qt_apps or {}
 	main_device_map = {
 		"rx_sig": devices.device_sig,
@@ -240,7 +261,7 @@ def main(devices:DeviceConfig,
 			device=device,
 			type="sig",
 			center_freq=FC_RED if site == CurrentSite.RED else FC_BLUE,
-			descriminator_gain=GAIN_SIG,
+			discriminator_gain=GAIN_SIG,
 		)
 
 	def _build_inf_config(level: int, device: str, site: CurrentSite) -> RxConfig:
@@ -253,7 +274,7 @@ def main(devices:DeviceConfig,
 			device=device,
 			type="inf",
 			center_freq=freq_map[level],
-			descriminator_gain=gain_map[level],
+			discriminator_gain=gain_map[level],
 		)
 
 	def _worker_thread(
@@ -262,6 +283,7 @@ def main(devices:DeviceConfig,
 		stop_event: threading.Event,
 		on_decoded: Callable[[list], None] | None,
 		qt_app: ScrollChartsApp | None,
+		ros_queue: Queue[list[dict]],
 	):
 		try:
 			with status_lock:
@@ -273,6 +295,7 @@ def main(devices:DeviceConfig,
 				on_decoded=on_decoded,
 				qt_app=qt_app,
 				visualize_on=VISUALIZE_ON,
+				ros_publish_queue=ros_queue,
 			)
 		except Exception as exc:
 			exception_queue.put((name, exc))
@@ -296,7 +319,7 @@ def main(devices:DeviceConfig,
 		thread = threading.Thread(
 			target=_worker_thread,
 			name=name,
-			args=(name, rx_config, stop_event, _on_decoded, qt_app),
+			args=(name, rx_config, stop_event, _on_decoded, qt_app, ros_publish_queue),
 			daemon=True,
 		)
 		with status_lock:
@@ -372,52 +395,49 @@ def main(devices:DeviceConfig,
 		node: WirelessRos2AdaptorNodeThreaded,
 		timeout_sec: float,
 	) -> Faction:
-		result: dict[str, Faction] = {"faction": Faction.UNKNOWN}
-		done = threading.Event()
-
-		def _worker() -> None:
-			try:
-				result["faction"] = node.get_faction()
-			except Exception as exc:
-				logging.error("Faction query failed: %s", exc)
-			finally:
-				done.set()
-
-		thread = threading.Thread(target=_worker, daemon=True)
-		thread.start()
-		done.wait(timeout=timeout_sec)
-		if not done.is_set():
-			logging.warning("Faction query timed out after %.2f seconds", timeout_sec)
-			return Faction.UNKNOWN
-		return result["faction"]
-
+		start_time = time.time()
+		while time.time() - start_time < timeout_sec:
+			faction = node.get_faction()
+			if faction in (Faction.RED, Faction.BLUE) or _should_stop():
+				return faction
+		result = node.get_faction()
+		return result
+	
 	# 尝试使用ros获取当前阵营信息
 	current_site: CurrentSite | None = None
-	if WirelessRos2AdaptorNodeThreaded is not None:
-		faction_node = None
-		try:
-			faction_node = WirelessRos2AdaptorNodeThreaded(namespace="main_ctrl_faction")
-			faction_node.start()
-			faction = _get_faction_with_timeout(faction_node, faction_timeout)
-			if faction == Faction.RED:
-				current_site = CurrentSite.RED
-				logging.log(logging.INFO, "Determined faction from ROS node: RED")
-				print("Determined faction from ROS node: RED")
-			elif faction == Faction.BLUE:
-				current_site = CurrentSite.BLUE
-				logging.log(logging.INFO, "Determined faction from ROS node: BLUE")
-				print("Determined faction from ROS node: BLUE")
-			else:
-				logging.warning("Failed to determine faction from ROS node, got: %s", faction)
-				print(f"Failed to determine faction from ROS node, got: {faction}")
-		# 关闭ros节点
-		finally:
-			if faction_node is not None:
-				faction_node.stop()
+	ros_node = None
+	try:
+		ros_node = WirelessRos2AdaptorNodeThreaded(
+			on_encrypt_level_change_callback=_on_ros_encrypt_level_change,
+			node_name="main_node",
+		)
+		ros_node.start()
+		print("ROS2 main node started")
+		logging.info("ROS2 main node started")
+		faction = _get_faction_with_timeout(ros_node, faction_timeout)
+		print(f"Got faction from ROS node: {faction}")
+		logging.log(logging.INFO, f"Got faction from ROS node: {faction}")
+		if faction == Faction.RED:
+			current_site = CurrentSite.RED
+			logging.log(logging.INFO, "Determined faction from ROS node: RED")
+			print("Determined faction from ROS node: RED")
+		elif faction == Faction.BLUE:
+			current_site = CurrentSite.BLUE
+			logging.log(logging.INFO, "Determined faction from ROS node: BLUE")
+			print("Determined faction from ROS node: BLUE")
+		else:
+			logging.warning("Failed to determine faction from ROS node, got: %s", faction)
+			print(f"Failed to determine faction from ROS node, got: {faction}")
+	except Exception as exc:
+		ros_node = None
+		print("ROS2 main node unavailable: %s", exc)
+		logging.error("ROS2 main node unavailable: %s", exc)
 
 	# 若未成功获取阵营信息（超时），则尝试对红蓝方信息波进行解调，成功则确定当前阵营信息
 	# 反复轮询尝试，包括主设备故障时启用备用设备的逻辑，直到成功解析才会往下走
 	if current_site is None:
+		print("Attempting to determine faction from signal decoding...")
+		logging.log(logging.INFO, "Attempting to determine faction from signal decoding...")
 		probe_timeout = inf_level_timeout
 		while True:
 			if _should_stop():
@@ -453,21 +473,7 @@ def main(devices:DeviceConfig,
 	rx_conf_sig = _build_sig_config(devices.device_sig, current_site)
 	rx_conf_inf = _build_inf_config(inf_level, devices.device_inf, current_site)
 
-	# 启用监听ros节点进程监听干扰等级
-	ros_listener = None
-	if WirelessRos2AdaptorNodeThreaded is not None:
-		try:
-			ros_listener = WirelessRos2AdaptorNodeThreaded(
-				on_encrypt_level_change_callback=_on_ros_encrypt_level_change,
-				namespace="main_ctrl",
-			)
-			ros_listener.start()
-			logging.info("ROS2 level listener started")
-		except Exception as exc:
-			ros_listener = None
-			logging.error("ROS2 level listener unavailable: %s", exc)
-
-	# 启动信息波解析/干扰波解析的两个线程
+	# 启动信息波解析/干扰波解析的两个线程 
 	with status_lock:
 		rx_sig_thread = thread_threads.get("rx_sig")
 	if rx_sig_thread is None or not rx_sig_thread.is_alive():
@@ -485,6 +491,20 @@ def main(devices:DeviceConfig,
 		while True:
 			if _should_stop():
 				break
+			# 处理子线程上报的 ROS 发布消息
+			if ros_node is not None:
+				try:
+					while True:
+						data_dict_list = ros_publish_queue.get_nowait()
+						_publish_ros_messages(ros_node, data_dict_list)
+				except Empty:
+					pass
+			else:
+				try:
+					while True:
+						ros_publish_queue.get_nowait()
+				except Empty:
+					pass
 			# 更新解析时间
 			try:
 				while True:
@@ -580,8 +600,8 @@ def main(devices:DeviceConfig,
 			worker_names = list(thread_threads.keys())
 		for name in worker_names:
 			_stop_worker(name)
-		if ros_listener is not None:
-			ros_listener.stop()
+		if ros_node is not None:
+			ros_node.stop()
 
 
 def work(
@@ -591,6 +611,7 @@ def work(
 	on_decoded: Callable[[list], None] | None = None,
 	qt_app: ScrollChartsApp | None = None,
 	visualize_on: bool = VISUALIZE_ON,
+	ros_publish_queue: Queue[list[dict]] | None = None,
 ) -> None:
 	"""
 	接收信号线程
@@ -598,24 +619,16 @@ def work(
 	"""
 	visualize_on = bool(visualize_on and qt_app is not None)
 
-	# 初始化ros通信节点
-	ros_node = None
-	if WirelessRos2AdaptorNodeThreaded is not None:
-		try:
-			ros_node = WirelessRos2AdaptorNodeThreaded(namespace=f"worker_{rx_config.type}")
-			ros_node.start()
-			print("ROS2 wireless adaptor started")
-			logging.info("ROS2 wireless adaptor started")
-		except Exception as exc:
-			ros_node = None
-			print(f"ROS2 adaptor unavailable: {exc}")
-			logging.log(logging.ERROR, f"ROS2 adaptor unavailable: {exc}")
-
 	device = rx_config.device
 	if device != "rtlsdr": # 使用pluto 需要先用序列号提取对应的iio_context的usb标识
 		devices = get_all_pluto_devices(timeout=search_timeout)
 		serial = device_conf.device_sig if device == "pluto" else device
 		usb_name = get_pluto_usb_by_serial(devices, serial)
+		if not usb_name:
+			raise ValueError(
+				f"Pluto device not found for serial {serial}. "
+				"Check iio_info -s output and USB connection."
+			)
 		rx_ctrl = pluto_ctrl_rx(
 			ip_addr=usb_name,
 			sample_rate=rx_config.sample_rate,
@@ -648,9 +661,10 @@ def work(
 	except Exception:
 		pass
 
+	decoder_type = "signal" if rx_config.type == "sig" else "jamming" if rx_config.type == "inf" else rx_config.type
 	decoder = frame_decoder_direct(
-		type=rx_config.type,
-		on_frame_decoded=_build_ros_publisher_callback(ros_node) if ros_node else None,
+		type=decoder_type,
+		on_frame_decoded=_build_ros_queue_callback(ros_publish_queue) if ros_publish_queue else None,
 		crc16_enabled=True,
 	)
 
@@ -700,10 +714,17 @@ def work(
 				logging.log(logging.INFO, "Finished recording signal.")
 				print("Finished recording signal.")
 	finally:
-		if ros_node is not None:
-			ros_node.stop()
+		try:
+			close_fn = getattr(rx_ctrl, "close", None)
+			if callable(close_fn):
+				close_fn()
+		except Exception:
+			pass
 
 if __name__ == "__main__":
+	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
+
 	if VISUALIZE_ON:
 		app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
 		qt_apps = {
@@ -716,6 +737,7 @@ if __name__ == "__main__":
 		qt_apps["rx_inf"].show()
 
 		stop_event = threading.Event()
+		
 		app.aboutToQuit.connect(stop_event.set)
 
 		main_thread = threading.Thread(

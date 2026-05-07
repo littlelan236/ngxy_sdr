@@ -115,13 +115,13 @@ class frame_decoder_direct:
     
     def _decode_frame_serial(self, frame_serial: bytes) -> dict | None:
         if self._crc16_enabled and not verify_crc16_check_sum(frame_serial, ENDIAN):
-            logging.log(logging.DEBUG, "[frame_decoder_direct] crc16 verify failed")
+            logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] crc16 verify failed")
             return None
 
         data_length = int.from_bytes(
             frame_serial[LEN_SOF:LEN_SOF + LEN_DATA_LENGTH], ENDIAN
         )
-        logging.log(logging.DEBUG, f"[frame_decoder_direct] decoded frame with data_length: {data_length}")
+        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] decoded frame with data_length: {data_length}")
         bias_cmd_id = LEN_HEADER
         cmd_id = int.from_bytes(frame_serial[bias_cmd_id:bias_cmd_id + LEN_CMD_ID], ENDIAN)
 
@@ -131,13 +131,13 @@ class frame_decoder_direct:
                 cmd_name = key
                 break
         if cmd_name is None:
-            logging.log(logging.INFO, "[frame_decoder_direct] cmd name not found")
+            logging.log(logging.INFO, f"[frame_decoder_direct][{self._type}] cmd name not found")
             return None
 
         bias_data = LEN_HEADER + LEN_CMD_ID
         data = frame_serial[bias_data:bias_data + data_length]
         fields = SERIAL_FIELDS[cmd_name]
-        logging.log(logging.DEBUG, f"[frame_decoder_direct] parsing cmd: {cmd_name} with fields: {fields}")
+        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] parsing cmd: {cmd_name} with fields: {fields}")
 
         data_dict = {}
         offset = 0
@@ -146,7 +146,7 @@ class frame_decoder_direct:
             if len(raw) != length:
                 logging.log(
                     logging.WARNING,
-                    f"[frame_decoder_direct] field length mismatch: {name} expect {length} got {len(raw)}",
+                    f"[frame_decoder_direct][{self._type}] field length mismatch: {name} expect {length} got {len(raw)}",
                 )
                 return None
 
@@ -195,10 +195,10 @@ class frame_decoder_direct:
                 break
 
             frame = payload[sof_idx:sof_idx + frame_length]
-            logging.log(logging.DEBUG, f"[frame_decoder_direct] found frame candidate at idx {sof_idx} with length {frame_length}")
+            logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] found frame candidate at idx {sof_idx} with length {frame_length}")
             if self._crc8_enabled and not verify_crc8_check_sum(frame[:LEN_HEADER]):
                 cursor = sof_idx + 1
-                logging.log(logging.DEBUG, f"[frame_decoder_direct] crc8 verify failed")
+                logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] crc8 verify failed")
                 continue
 
             decoded = self._decode_frame_serial(frame)
@@ -219,23 +219,23 @@ class frame_decoder_direct:
         chunk = self._normalize_bits(bits)
         if chunk.size == 0:
             return []
-        logging.log(logging.DEBUG, f"[frame_decoder_direct] input bits chunk size: {chunk.size}")
+        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] input bits chunk size: {chunk.size}")
 
         if self._bit_carry.size == 0:
             stream = chunk
         else:
             stream = np.concatenate([self._bit_carry, chunk])
-            logging.log(logging.DEBUG, f"[frame_decoder_direct] concat stream size: {stream.size}")
+            logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] concat stream size: {stream.size}")
 
         payloads, carry_start = self._extract_ota_payloads(stream)
         for p in payloads:
             self._payload_buffer.extend(p)
         if len(payloads) > 0:
-            logging.log(logging.INFO, f"[frame_decoder_direct] extracted {len(payloads)} OTA payloads")
+            logging.log(logging.INFO, f"[frame_decoder_direct][{self._type}] extracted {len(payloads)} OTA payloads")
         else:
-            logging.log(logging.DEBUG, f"[frame_decoder_direct] no OTA payload extracted")
+            logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] no OTA payload extracted")
         
-        logging.log(logging.DEBUG, f"[frame_decoder_direct] payload buffer size: {len(self._payload_buffer)}")
+        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] payload buffer size: {len(self._payload_buffer)}")
 
         # 仅保留未完成/未识别出的尾部 bits，避免重复保存已消费的内容
         if carry_start >= stream.size:
@@ -245,17 +245,17 @@ class frame_decoder_direct:
 
         if self._bit_carry.size > self._bit_carry_len:
             self._bit_carry = self._bit_carry[-self._bit_carry_len:].copy()
-        logging.log(logging.DEBUG, f"[frame_decoder_direct] updated bit carry size: {self._bit_carry.size}")
+        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] updated bit carry size: {self._bit_carry.size}")
 
         decoded = self._scan_serial_frames()
         if len(decoded) > 0:
-            logging.log(logging.INFO, f"[frame_decoder_direct] decoded frames count: {len(decoded)}")
+            logging.log(logging.INFO, f"[frame_decoder_direct][{self._type}] decoded frames count: {len(decoded)}")
         else:
-            logging.log(logging.DEBUG, f"[frame_decoder_direct] decoded frames count 0")
+            logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] decoded frames count 0")
         if decoded and self._on_frame_decoded:
             try:
                 self._on_frame_decoded(decoded)
             except Exception as exc:
-                logging.log(logging.WARNING, f"[frame_decoder_direct] callback error: {exc}")
+                logging.log(logging.WARNING, f"[frame_decoder_direct][{self._type}] callback error: {exc}")
 
         return decoded
