@@ -188,7 +188,10 @@ class MMSymbolSynchronizer:
         self._trim_consumed_buffer()
         if outputs.size == 0:
             return np.array([], dtype=self._buffer.dtype if self._buffer.size else np.complex128)
-        return outputs.astype(self._buffer.dtype if self._buffer.size else np.complex128, copy=False)
+        target_dtype = self._buffer.dtype if self._buffer.size else np.complex128
+        if np.issubdtype(target_dtype, np.floating):
+            return np.real(outputs).astype(target_dtype, copy=False)
+        return outputs.astype(target_dtype, copy=False)
 
         # 非jit逻辑
         outputs: list[complex | float] = []
