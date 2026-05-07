@@ -268,7 +268,7 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: C:\Users\wangt\Desktop\rec\1
+    file: C:\Users\wangt\Desktop\rec\sig1
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
@@ -301,7 +301,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.1
+    uri: pluto.local
   states:
     bus_sink: false
     bus_source: false
