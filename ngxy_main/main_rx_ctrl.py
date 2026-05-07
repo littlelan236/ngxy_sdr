@@ -397,11 +397,10 @@ def main(devices:DeviceConfig,
 	) -> Faction:
 		start_time = time.time()
 		while time.time() - start_time < timeout_sec:
-			faction = node.get_faction()
+			faction = node.get_faction(timeout=faction_timeout)
 			if faction in (Faction.RED, Faction.BLUE) or _should_stop():
 				return faction
-		result = node.get_faction()
-		return result
+		return faction
 	
 	# 尝试使用ros获取当前阵营信息
 	current_site: CurrentSite | None = None
@@ -622,6 +621,8 @@ def work(
 	device = rx_config.device
 	if device != "rtlsdr": # 使用pluto 需要先用序列号提取对应的iio_context的usb标识
 		devices = get_all_pluto_devices(timeout=search_timeout)
+		print(f"Found Pluto devices: {devices}")
+		logging.log(logging.INFO, f"Found Pluto devices: {devices}")
 		serial = device_conf.device_sig if device == "pluto" else device
 		usb_name = get_pluto_usb_by_serial(devices, serial)
 		if not usb_name:
