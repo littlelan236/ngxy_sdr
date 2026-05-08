@@ -2,11 +2,20 @@
 # -*- coding: utf-8 -*-
 
 # 选项
-VISUALIZE_ON = False
-RECORD_SIGNAL_ON = False
+VISUALIZE_ON = True
+RECORD_SIGNAL_ON = True
+SIGNAL_TX_ON = True
 
 # 参数
 NUM_SAMPS = 1e5 # 10Hz
+
+TIMEOUT_DEVICE_SEARCH = 5
+INTERVAL_MAIN_CYCLE = 0.1
+TIMEOUT_ROS_FACTION_QUERY = 5
+INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 5.0
+TIMEOUT_INF_LEVEL = 5
+TIMEOUT_STOP_WORKER_JOIN = 2.0
+TIMEOUT_ENSURE_WORKER_STOPPED = 3.0
 
 from dataclasses import dataclass
 from extract_usb import *
@@ -24,6 +33,33 @@ device_conf = DeviceConfig(
 	device_inf=SERIAL_PLUTO_SDR,
 	device_backup="rtlsdr"
 )
+
+@dataclass
+class SigTxConfig:
+	center_freq: float
+	sample_rate: float
+	num_samps: int
+	tx_gain: float | None = None
+	iq_file: str | None = None
+
+from enum import Enum
+# 模拟发送的iq信号文件路径
+class SimSigType(Enum):
+	SIG1_PATH = "/home/ubuntu/radar2026/radio26/sig1.iq"
+	SIG2_PATH = "/home/ubuntu/radar2026/radio26/sig2.iq"
+	INF1_PATH = "/home/ubuntu/radar2026/radio26/inf1.iq"
+	INF2_PATH = "/home/ubuntu/radar2026/radio26/inf2.iq"
+
+from def_signal import *
+# 模拟发送的iq信号配置 在本程序中仅支持发送信号源 使用device_sig
+tx_config = SigTxConfig(
+	center_freq=FC_RED,
+	sample_rate=SAMP_RATE,
+	num_samps=327680,
+	tx_gain=-0.0, # -90 to 0
+	iq_file=SimSigType.SIG1_PATH.value,
+)
+
 
 # ------分界线------
 
@@ -44,7 +80,6 @@ if sys.platform == "linux":
         pass
 
 import json
-from enum import Enum
 from collections.abc import Callable
 from pathlib import Path
 import sys
@@ -55,6 +90,7 @@ import numpy as np
 import logging
 from PyQt5 import QtWidgets
 import rclpy
+import adi
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -68,7 +104,6 @@ from def_status import dict_to_dataclass
 from quadrate_discriminator import QuadratureDiscriminator, QuadratureDiscriminatorConfig
 from symbol_sync import MMSymbolSynchronizer, MMSymbolSyncConfig, bpsk_bits_from_symbols
 from def_taps import *
-from def_signal import *
 from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
 
 # Ensure workspace root is importable when running this file directly.
@@ -99,7 +134,7 @@ qt_gui_configs = [
 	ChartConfig(
 		num_series=1,
 		buffer_size=1024,
-		autoscale=True,
+		autoscale=False,
 		y_range=(-2.0, 2.0),
 		hline_values=[0.0],
 		title='原始信号',
@@ -141,6 +176,7 @@ qt_gui_configs = [
 ]
 
 
+
 def _json_default(value):
 	if isinstance(value, Enum):
 		return value.value
@@ -149,25 +185,17 @@ def _json_default(value):
 	return str(value)
 
 
-def _publish_ros_messages(ros_node, data_dict_list: list[dict]) -> None:
-	for data_dict in data_dict_list:
-		status_obj = dict_to_dataclass(data_dict)
-		if status_obj is None:
-			continue
-
-		msg_dict = {
-			"type": type(status_obj).__name__,
-			"data": status_obj,
-		}
-		json_str = json.dumps(msg_dict, default=_json_default, ensure_ascii=False)
-		print(f"Publishing ROS2 message: {json_str}")
-		logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
-		ros_node.publish_wireless_result(json_str)
+def _publish_ros_messages(ros_node, data_dict: dict) -> None:
+	json_str = json.dumps(data_dict, default=_json_default, ensure_ascii=False)
+	print(f"Publishing ROS2 message: {json_str}")
+	logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
+	ros_node.publish_wireless_result(json_str)
 
 
 def _build_ros_queue_callback(ros_queue: Queue[list[dict]]):
 	def _on_frame_decoded(data_dict_list: list[dict]):
-		ros_queue.put(data_dict_list)
+		for dict in data_dict_list:
+			ros_queue.put(dict)
 
 	return _on_frame_decoded
 
@@ -195,6 +223,10 @@ def process_chunk(
 
 	complex_samples = _to_1d_array(samples).astype(np.complex128, copy=False)
 	qt_app.add_values(0, complex_samples) if qt_app and visualize_on else None
+	# if pre_taps is not None:
+	# 	filtered_iq = apply_fft_filter(complex_samples, pre_taps)
+	# else:
+	# 	filtered_iq = complex_samples
 	filtered_iq = apply_fft_filter(complex_samples, pre_taps)
 	qt_app.add_values(1, [complex_samples, filtered_iq]) if qt_app and visualize_on else None
 	demodulated = discriminator.process(filtered_iq)
@@ -212,12 +244,13 @@ def process_chunk(
 	return bits, decoded_frames
 
 def main(devices:DeviceConfig, 
-		 inf_level_timeout=5, 
-		 device_search_timeout=10, 
-		 main_cycle_update_interval=0.5,
-		 faction_timeout=5,
+		 inf_level_timeout=TIMEOUT_INF_LEVEL, 
+		 device_search_timeout=TIMEOUT_DEVICE_SEARCH, 
+		 main_cycle_update_interval=INTERVAL_MAIN_CYCLE,
+		 faction_timeout=TIMEOUT_ROS_FACTION_QUERY,
 		 qt_apps: dict[str, ScrollChartsApp] | None = None,
-		 stop_event: threading.Event | None = None) -> None:
+		 stop_event: threading.Event | None = None,
+		main_cycle_device_ctrl_interval = INTERVAL_MAIN_CYCLE_DEVICE_CTRL)-> None:
 	"""
 	负责管理信号接收的两个子线程
 	在默认的接收设备报错时，切换到备用设备
@@ -244,6 +277,7 @@ def main(devices:DeviceConfig,
 	last_decode_time_queue: Queue[tuple[str, float]] = Queue()
 	ros_level_queue: Queue[int] = Queue()
 	ros_publish_queue: Queue[list[dict]] = Queue()
+	last_device_ctrl_time = 0 #  上次控制设备的时间戳，用于避免过于频繁地切换设备
 	qt_apps = qt_apps or {}
 	main_device_map = {
 		"rx_sig": devices.device_sig,
@@ -307,7 +341,33 @@ def main(devices:DeviceConfig,
 			with status_lock:
 				thread_status[name] = "stopped"
 
+	def _clear_worker_queues(worker_name: str) -> None:
+		other_errors: list[tuple[str, Exception]] = []
+		try:
+			while True:
+				name, exc = exception_queue.get_nowait()
+				if name != worker_name:
+					other_errors.append((name, exc))
+		except Empty:
+			pass
+		finally:
+			for item in other_errors:
+				exception_queue.put(item)
+
+		other_decodes: list[tuple[str, float]] = []
+		try:
+			while True:
+				name, ts = last_decode_time_queue.get_nowait()
+				if name != worker_name:
+					other_decodes.append((name, ts))
+		except Empty:
+			pass
+		finally:
+			for item in other_decodes:
+				last_decode_time_queue.put(item)
+
 	def _start_worker(name: str, rx_config: RxConfig) -> None:
+		_clear_worker_queues(name)
 		print(f"Starting worker {name} with device {rx_config.device}...")
 		logging.log(logging.INFO, f"Starting worker {name} with device {rx_config.device}...")
 		stop_event = threading.Event()
@@ -331,7 +391,7 @@ def main(devices:DeviceConfig,
 			restart_attempted.setdefault(name, False)
 		thread.start()
 
-	def _stop_worker(name: str, join_timeout: float = 2.0) -> bool:
+	def _stop_worker(name: str, join_timeout: float = TIMEOUT_STOP_WORKER_JOIN) -> bool:
 		print(f"Stopping worker {name}...")
 		logging.log(logging.INFO, f"Stopping worker {name}...")
 		with status_lock:
@@ -343,6 +403,24 @@ def main(devices:DeviceConfig,
 			thread.join(timeout=join_timeout)
 			return not thread.is_alive()
 		return True
+
+	def _ensure_worker_stopped(name: str, total_timeout: float = TIMEOUT_ENSURE_WORKER_STOPPED) -> bool:
+		stopped = _stop_worker(name)
+		if stopped:
+			return True
+		deadline = time.time() + total_timeout
+		while time.time() < deadline:
+			with status_lock:
+				thread = thread_threads.get(name)
+			if thread is None or not thread.is_alive():
+				return True
+			thread.join(timeout=0.1)
+		return False
+
+	def _report_stop_failure(name: str, context: str) -> None:
+		message = f"{name} did not stop within timeout during {context}"
+		exception_queue.put((name, RuntimeError(message)))
+		logging.warning(message)
 
 	def _backup_in_use_by() -> str | None:
 		print("Checking if backup device is in use...")
@@ -371,6 +449,8 @@ def main(devices:DeviceConfig,
 						last_decode_time[name] = ts
 						restart_attempted[name] = False
 					if name == worker_name:
+						print(f"Worker {name} reported successful decode")
+						logging.log(logging.INFO, f"Worker {name} reported successful decode")
 						return True, None
 			except Empty:
 				pass
@@ -380,6 +460,8 @@ def main(devices:DeviceConfig,
 				while True:
 					name, exc = exception_queue.get_nowait()
 					if name == worker_name:
+						print(f"Worker {name} reported error: {exc}")
+						logging.log(logging.INFO, f"Worker {name} reported error: {exc}")
 						return False, exc
 					other_errors.append((name, exc))
 			except Empty:
@@ -389,6 +471,9 @@ def main(devices:DeviceConfig,
 					exception_queue.put(item)
 
 			time.sleep(0.05)
+		if time.time() - start_time < timeout_sec:
+			print(f"Timeout waiting for decode from {worker_name}, timeout after {time.time() - start_time:.2f} seconds")
+			logging.log(logging.INFO, f"Timeout waiting for decode from {worker_name}, timeout after {time.time() - start_time:.2f} seconds")
 		return False, None
 
 	def _get_faction_with_timeout(
@@ -401,6 +486,46 @@ def main(devices:DeviceConfig,
 			if faction in (Faction.RED, Faction.BLUE) or _should_stop():
 				return faction
 		return faction
+
+	def _probe_faction_site(site: CurrentSite) -> CurrentSite | None:
+		primary_device = devices.device_sig
+		backup_device = (
+			devices.device_backup
+			if devices.device_backup and devices.device_backup != primary_device
+			else None
+		)
+
+		rx_conf_sig = _build_sig_config(primary_device, site)
+		_start_worker("rx_sig", rx_conf_sig)
+		decoded, error = _wait_for_decode_or_error("rx_sig", inf_level_timeout)
+		stopped = _ensure_worker_stopped("rx_sig")
+		if not stopped:
+			logging.warning("rx_sig did not stop cleanly; skipping probe for %s", site.name)
+			return None
+		if decoded:
+			return site
+
+		if error is not None and backup_device is not None:
+			print(
+				f"Primary device {primary_device} failed for {site.name}, switching to backup device {backup_device}..."
+			)
+			logging.info(
+				"Primary device %s failed for %s, switching to backup device %s",
+				primary_device,
+				site.name,
+				backup_device,
+			)
+			rx_conf_sig = _build_sig_config(backup_device, site)
+			_start_worker("rx_sig", rx_conf_sig)
+			decoded, _ = _wait_for_decode_or_error("rx_sig", inf_level_timeout)
+			stopped = _ensure_worker_stopped("rx_sig")
+			if not stopped:
+				logging.warning("rx_sig did not stop cleanly; skipping backup probe for %s", site.name)
+				return None
+			if decoded:
+				return site
+
+		return None
 	
 	# 尝试使用ros获取当前阵营信息
 	current_site: CurrentSite | None = None
@@ -437,34 +562,19 @@ def main(devices:DeviceConfig,
 	if current_site is None:
 		print("Attempting to determine faction from signal decoding...")
 		logging.log(logging.INFO, "Attempting to determine faction from signal decoding...")
-		probe_timeout = inf_level_timeout
 		while True:
 			if _should_stop():
 				return
 			for site in (CurrentSite.RED, CurrentSite.BLUE):
 				if _should_stop():
 					return
-				device_candidates = [devices.device_sig]
-				if (
-					devices.device_backup
-					and devices.device_backup != devices.device_sig
-				):
-					device_candidates.append(devices.device_backup)
-				for device in device_candidates:
-					rx_conf_sig = _build_sig_config(device, site)
-					_start_worker("rx_sig", rx_conf_sig)
-					decoded, error = _wait_for_decode_or_error("rx_sig", probe_timeout)
-					_stop_worker("rx_sig")
-					if decoded:
-						current_site = site
-						break
-					if error is not None and device == devices.device_sig:
-						continue
-				if current_site is not None:
+				probe_result = _probe_faction_site(site)
+				if probe_result is not None:
+					current_site = probe_result
 					break
 			if current_site is not None:
-				logging.log(logging.INFO, "Determined faction from ROS node: %s", current_site.name)
-				print(f"Determined faction from ROS node: {current_site.name}")
+				logging.log(logging.INFO, "Determined faction from signal decoding: %s", current_site.name)
+				print(f"Determined faction from signal decoding: {current_site.name}")
 				break
 
 	# 接收设备配置
@@ -487,6 +597,10 @@ def main(devices:DeviceConfig,
 	
 	# 主循环
 	try:
+		# 先清空当前消息队列
+		_clear_worker_queues("rx_sig")
+		_clear_worker_queues("rx_inf")
+		
 		while True:
 			if _should_stop():
 				break
@@ -494,8 +608,8 @@ def main(devices:DeviceConfig,
 			if ros_node is not None:
 				try:
 					while True:
-						data_dict_list = ros_publish_queue.get_nowait()
-						_publish_ros_messages(ros_node, data_dict_list)
+						data_dict = ros_publish_queue.get_nowait()
+						_publish_ros_messages(ros_node, data_dict)
 				except Empty:
 					pass
 			else:
@@ -513,85 +627,107 @@ def main(devices:DeviceConfig,
 						restart_attempted[name] = False
 			except Empty:
 				pass
-			# 处理异常，必要时切换到备用设备
-			try:
-				while True:
-					name, exc = exception_queue.get_nowait()
-					print(f"Worker {name} error: {exc}")
-					logging.error("Worker %s error: %s", name, exc)
-					print(f"Attempting to switch {name} to backup device...")
-					logging.log(logging.INFO, f"Worker {name} error: {exc}, attempting to switch to backup device if available.")
 
-					with status_lock:
-						current_device = thread_devices.get(name)
-					backup_owner = _backup_in_use_by()
-					# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
-					if devices.device_backup and backup_owner is None:
-						_stop_worker(name)
-						if name == "rx_inf":
-							rx_conf_inf = _build_inf_config(inf_level, devices.device_backup, current_site)
-							_start_worker("rx_inf", rx_conf_inf)
-						else:
-							rx_conf_sig = _build_sig_config(devices.device_backup, current_site)
-							_start_worker("rx_sig", rx_conf_sig)
-						print(f"Switched {name} to backup device: {devices.device_backup}")
-						logging.info(f"Switched {name} to backup device: {devices.device_backup}")
-					# 若当前备用设备被占用，尝试重启一次当前设备
-					elif backup_owner is not None and current_device == main_device_map.get(name):
-						logging.log(logging.INFO, f"Backup device {devices.device_backup} is currently in use by {backup_owner}, attempting to restart current device {current_device} for {name}.")	
-						print(f"Backup device {devices.device_backup} is currently in use by {backup_owner}, attempting to restart current device {current_device} for {name}...")
+			# 每两轮操作设备起停设置一个时间间隔，避免过于频繁地切换设备
+			if time.time() - last_device_ctrl_time >= 2 * main_cycle_device_ctrl_interval:
+
+				# 处理异常，必要时切换到备用设备
+				try:
+					while True:
+						name, exc = exception_queue.get_nowait()
+						print(f"Worker {name} error: {exc}")
+						logging.error("Worker %s error: %s", name, exc)
+						print(f"Attempting to switch {name} to backup device...")
+						logging.log(logging.INFO, f"Worker {name} error: {exc}, attempting to switch to backup device if available.")
+
 						with status_lock:
-							already_tried = restart_attempted.get(name, False)
-						if not already_tried:
-							with status_lock:
-								restart_attempted[name] = True
+							current_device = thread_devices.get(name)
+						backup_owner = _backup_in_use_by()
+						# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
+						if devices.device_backup and backup_owner is None:
 							_stop_worker(name)
-							main_device = main_device_map.get(name)
 							if name == "rx_inf":
-								rx_conf_inf = _build_inf_config(inf_level, main_device, current_site)
+								rx_conf_inf = _build_inf_config(inf_level, devices.device_backup, current_site)
 								_start_worker("rx_inf", rx_conf_inf)
 							else:
-								rx_conf_sig = _build_sig_config(main_device, current_site)
+								rx_conf_sig = _build_sig_config(devices.device_backup, current_site)
 								_start_worker("rx_sig", rx_conf_sig)
-			except Empty:
-				pass
-
-			# 处理 ROS 干扰等级变化
-			ros_level_applied = False
-			try:
-				while True:
-					new_level = ros_level_queue.get_nowait()
-					if new_level in (1, 2, 3) and new_level != inf_level:
-						stopped = _stop_worker("rx_inf")
-						if stopped:
-							inf_level = new_level
+							print(f"Switched {name} to backup device: {devices.device_backup}")
+							logging.info(f"Switched {name} to backup device: {devices.device_backup}")
+						# 若当前备用设备被占用，尝试重启一次当前设备
+						elif backup_owner is not None and current_device == main_device_map.get(name):
+							logging.log(logging.INFO, f"Backup device {devices.device_backup} is currently in use by {backup_owner}, attempting to restart current device {current_device} for {name}.")	
+							print(f"Backup device {devices.device_backup} is currently in use by {backup_owner}, attempting to restart current device {current_device} for {name}...")
 							with status_lock:
-								inf_device = thread_devices.get("rx_inf", devices.device_inf)
-							rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
-							_start_worker("rx_inf", rx_conf_inf)
-							with status_lock:
-								last_decode_time["rx_inf"] = time.time()
-							ros_level_applied = True
-							logging.info("rx_inf switched to level %s due to ROS command", inf_level)
-							print(f"rx_inf switched to level {inf_level} due to ROS command")
-			except Empty:
-				pass
+								already_tried = restart_attempted.get(name, False)
+							if not already_tried:
+								with status_lock:
+									restart_attempted[name] = True
+								_stop_worker(name)
+								main_device = main_device_map.get(name)
+								if name == "rx_inf":
+									rx_conf_inf = _build_inf_config(inf_level, main_device, current_site)
+									_start_worker("rx_inf", rx_conf_inf)
+								else:
+									rx_conf_sig = _build_sig_config(main_device, current_site)
+									_start_worker("rx_sig", rx_conf_sig)
+				except Empty:
+					pass
 
-			# 干扰等级轮换
-			if not ros_level_applied:
+				# 处理 ROS 干扰等级变化
+				ros_level_applied = False
+				try:
+					while True:
+						new_level = ros_level_queue.get_nowait()
+						if new_level in (1, 2, 3) and new_level != inf_level:
+							stopped = _ensure_worker_stopped("rx_inf")
+							if stopped:
+								inf_level = new_level
+								with status_lock:
+									inf_device = thread_devices.get("rx_inf", devices.device_inf)
+								rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
+								_start_worker("rx_inf", rx_conf_inf)
+								with status_lock:
+									last_decode_time["rx_inf"] = time.time()
+								ros_level_applied = True
+								logging.info("rx_inf switched to level %s due to ROS command", inf_level)
+								print(f"rx_inf switched to level {inf_level} due to ROS command")
+				except Empty:
+					pass
+
+				# 干扰等级轮换
+				if not ros_level_applied:
+					with status_lock:
+						inf_thread = thread_threads.get("rx_inf")
+						inf_last = last_decode_time.get("rx_inf", time.time())
+						inf_device = thread_devices.get("rx_inf", devices.device_inf)
+					if inf_thread is not None and inf_thread.is_alive():
+						if time.time() - inf_last >= inf_level_timeout:
+							stopped = _ensure_worker_stopped("rx_inf")
+							if stopped:
+								inf_level = 1 if inf_level >= 3 else inf_level + 1
+								rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
+								_start_worker("rx_inf", rx_conf_inf)
+								logging.info("rx_inf switched to next level %d due to timeout", inf_level)
+								print(f"rx_inf switched to next level {inf_level} due to timeout")
+
+				# 在处理完所有报错后，对于未在正常工作的线程尝试执行一次启动
 				with status_lock:
-					inf_thread = thread_threads.get("rx_inf")
-					inf_last = last_decode_time.get("rx_inf", time.time())
-					inf_device = thread_devices.get("rx_inf", devices.device_inf)
-				if inf_thread is not None and inf_thread.is_alive():
-					if time.time() - inf_last >= inf_level_timeout:
-						stopped = _stop_worker("rx_inf")
-						if stopped:
-							inf_level = 1 if inf_level >= 3 else inf_level + 1
-							rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
-							_start_worker("rx_inf", rx_conf_inf)
-							logging.info("rx_inf switched to next level %d due to timeout", inf_level)
-							print(f"rx_inf switched to next level {inf_level} due to timeout")
+					rx_sig_thread = thread_threads.get("rx_sig")
+					rx_inf_thread = thread_threads.get("rx_inf")
+					rx_sig_running = rx_sig_thread is not None and rx_sig_thread.is_alive()
+					rx_inf_running = rx_inf_thread is not None and rx_inf_thread.is_alive()
+				if not rx_sig_running:
+					logging.log(logging.INFO, "rx_sig is not running, attempting to restart...")
+					print("rx_sig is not running, attempting to restart...")
+					_start_worker("rx_sig", rx_conf_sig)
+				if not rx_inf_running:
+					logging.log(logging.INFO, "rx_inf is not running, attempting to restart...")
+					print("rx_inf is not running, attempting to restart...")
+					_start_worker("rx_inf", rx_conf_inf)
+
+				# 更新设备控制时间戳
+				last_device_ctrl_time = time.time()
 
 			time.sleep(main_cycle_update_interval)
 	finally:
@@ -617,6 +753,13 @@ def work(
 	包括硬件控制 信号处理 发送ros信息 可视化
 	"""
 	visualize_on = bool(visualize_on and qt_app is not None)
+
+	if rx_config.type == "sig" and SIGNAL_TX_ON and rx_config.device == device_conf.device_sig:
+		try:
+			tx_sig(tx_config)
+		except Exception as exc:
+			logging.exception("tx_sig failed")
+			print(f"tx_sig failed: {exc}")
 
 	device = rx_config.device
 	if device != "rtlsdr": # 使用pluto 需要先用序列号提取对应的iio_context的usb标识
@@ -677,7 +820,7 @@ def work(
 		try:
 			if RECORD_SIGNAL_ON:
 				timestamp = time.strftime("%Y%m%d_%H%M%S")
-				filename = f"record_{rx_config.type}_{timestamp}.iq"
+				filename = f"record_{rx_config.type}_{rx_config.center_freq}_{timestamp}.iq"
 				print(f"Recording signal to {filename}")
 				record_file = open(filename, "wb")
 				logging.log(logging.INFO, f"Recording signal to {filename}")
@@ -692,9 +835,15 @@ def work(
 					time.sleep(0.01)
 					continue
 
+				pre_taps = TAPS_LPF_PRE if rx_config.type == "sig" else (
+					TAPS_LPF_PRE_1 if rx_config.type == "inf" and rx_config.center_freq in (FC_RED_1, FC_BLUE_1) else (
+						TAPS_LPF_PRE_2 if rx_config.type == "inf" and rx_config.center_freq in (FC_RED_2, FC_BLUE_2) else 
+						TAPS_LPF_PRE_3
+					)
+				)
 				bits, decoded_frames = process_chunk(
 					samples=samples,
-					pre_taps=TAPS_LPF_PRE,
+					pre_taps=pre_taps,
 					post_taps=TAPS_LPF,
 					discriminator=discriminator,
 					symbol_sync=symbol_sync,
@@ -722,9 +871,50 @@ def work(
 		except Exception:
 			pass
 
+
+
+def tx_sig(sigTxConfig: SigTxConfig) -> None:
+	"""开启模拟的信号发送"""
+	if not sigTxConfig.iq_file:
+		raise ValueError("iq_file is required for tx_sig")
+	devices = get_all_pluto_devices(timeout=TIMEOUT_DEVICE_SEARCH)
+	print(f"Found Pluto devices: {devices}")
+	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
+	serial = device_conf.device_sig
+	usb_name = get_pluto_usb_by_serial(devices, serial)
+	print(f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
+	logging.log(logging.INFO, f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
+
+	sdr = adi.Pluto(usb_name)
+	sdr.sample_rate = int(sigTxConfig.sample_rate)
+	sdr.tx_rf_bandwidth = int(sigTxConfig.sample_rate)
+	sdr.tx_lo = int(sigTxConfig.center_freq)
+	sdr.tx_hardwaregain_chan0 = int(sigTxConfig.tx_gain)
+	sdr.tx_cyclic_buffer = True
+
+	sample_count = int(sigTxConfig.num_samps)
+	samples = np.fromfile(sigTxConfig.iq_file, dtype=np.complex64, count=sample_count)
+	if samples.size == 0:
+		raise ValueError(f"No samples loaded from {sigTxConfig.iq_file}")
+	if samples.size < sample_count:
+		logging.warning(
+			"Requested %d samples but only %d available in %s",
+			sample_count,
+			samples.size,
+			sigTxConfig.iq_file,
+		)
+	sdr.tx_buffer_size = int(samples.size)
+	sdr.tx(samples)
+	print("Started transmitting signal from file: %s", sigTxConfig.iq_file)
+	logging.log(logging.INFO, "Started transmitting signal from file: %s", sigTxConfig.iq_file)
+
+
 if __name__ == "__main__":
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
-	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
+	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.INFO, filename=LOG_FILE_PATH, filemode='w')
+
+	if SIGNAL_TX_ON:
+		tx_sig(tx_config)
 
 	if VISUALIZE_ON:
 		app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
@@ -749,6 +939,7 @@ if __name__ == "__main__":
 		)
 		main_thread.start()
 		app.exec_()
+
 		stop_event.set()
 		main_thread.join(timeout=2.0)
 	else:

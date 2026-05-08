@@ -58,6 +58,7 @@ GAIN_3 = 1 / SENSITIVITY_3
 # TAPS_LPF_3 = firdes.low_pass(1.0, samp_rate, 20e3, 5e3)
 
 if __name__ == "__main__":
-    print( DF_1 + 10e3)
-    print( DF_2 + 10e3)
-    print( DF_3 + 10e3)
+    print(BW_SIG / 2)
+    print(BW_1 / 2)
+    print(BW_2 / 2)
+    print(BW_3 / 2)

@@ -177,6 +177,7 @@ class frame_decoder_direct:
 
         while cursor < len(payload):
             sof_idx = payload.find(bytes([SOF]), cursor)
+            logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] searching for SOF from idx {cursor}, found at {sof_idx}")
             if sof_idx < 0:
                 break
 

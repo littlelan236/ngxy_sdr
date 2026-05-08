@@ -284,6 +284,10 @@ class ChartItem(QWidget):
         if self.autoscale:
             self._update_y_axis_autoscale()
 
+    def refresh_now(self):
+        """手动刷新一次所有曲线。"""
+        self._refresh_all_series()
+
     def _update_y_axis_autoscale(self):
         y_axis = self.chart.axisY()
         if y_axis is None:
