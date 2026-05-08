@@ -266,6 +266,67 @@ def main(device, rx_config) -> None:
 	finally:
 		if ros_node is not None:
 			ros_node.stop()
+@dataclass
+class SigTxConfig:
+	center_freq: float
+	sample_rate: float
+	num_samps: int
+	tx_gain: float | None = None
+	iq_file: str | None = None
+
+from enum import Enum
+# 模拟发送的iq信号文件路径
+class SimSigType(Enum):
+	SIG1_PATH = "/home/ubuntu/radar2026/radio26/sig1.iq"
+	SIG2_PATH = "/home/ubuntu/radar2026/radio26/sig2.iq"
+	INF1_PATH = "/home/ubuntu/radar2026/radio26/inf1.iq"
+	INF2_PATH = "/home/ubuntu/radar2026/radio26/inf2.iq"
+
+from def_signal import *
+# 模拟发送的iq信号配置 在本程序中仅支持发送信号源 使用device_sig
+tx_config = SigTxConfig(
+	center_freq=FC_RED,
+	sample_rate=SAMP_RATE,
+	num_samps=327680,
+	tx_gain=-0.0, # -90 to 0
+	iq_file=SimSigType.SIG1_PATH.value,
+)
+import adi
+from main_rx_ctrl import get_all_pluto_devices, get_pluto_usb_by_serial, TIMEOUT_DEVICE_SEARCH, device_conf
+def tx_sig(sigTxConfig: SigTxConfig) -> None:
+	"""开启模拟的信号发送"""
+	if not sigTxConfig.iq_file:
+		raise ValueError("iq_file is required for tx_sig")
+	devices = get_all_pluto_devices(timeout=TIMEOUT_DEVICE_SEARCH)
+	print(f"Found Pluto devices: {devices}")
+	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
+	serial = device_conf.device_inf
+	usb_name = get_pluto_usb_by_serial(devices, serial)
+	print(f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
+	logging.log(logging.INFO, f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
+
+	sdr = adi.Pluto(usb_name)
+	sdr.sample_rate = int(sigTxConfig.sample_rate)
+	sdr.tx_rf_bandwidth = int(sigTxConfig.sample_rate)
+	sdr.tx_lo = int(sigTxConfig.center_freq)
+	sdr.tx_hardwaregain_chan0 = int(sigTxConfig.tx_gain)
+	sdr.tx_cyclic_buffer = True
+
+	sample_count = int(sigTxConfig.num_samps)
+	samples = np.fromfile(sigTxConfig.iq_file, dtype=np.complex64, count=sample_count)
+	if samples.size == 0:
+		raise ValueError(f"No samples loaded from {sigTxConfig.iq_file}")
+	if samples.size < sample_count:
+		logging.warning(
+			"Requested %d samples but only %d available in %s",
+			sample_count,
+			samples.size,
+			sigTxConfig.iq_file,
+		)
+	sdr.tx_buffer_size = int(samples.size)
+	sdr.tx(samples)
+	print("Started transmitting signal from file: %s", sigTxConfig.iq_file)
+	logging.log(logging.INFO, "Started transmitting signal from file: %s", sigTxConfig.iq_file)
 
 
 if __name__ == "__main__":
