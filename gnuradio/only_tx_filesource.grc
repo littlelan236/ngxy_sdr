@@ -258,7 +258,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1624, 12.0]
+    coordinate: [1064, 92.0]
     rotation: 0
     state: enabled
 - name: blocks_file_source_0
@@ -289,7 +289,7 @@ blocks:
     affinity: ''
     alias: ''
     attenuation1: '20'
-    bandwidth: signal_bandwidth_1
+    bandwidth: '1000000'
     buffer_size: '3276800'
     comment: ''
     cyclic: 'True'

@@ -277,7 +277,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: firdes.low_pass(1.0, samp_rate, 460774.5453191752, 2000)
+    value: firdes.low_pass(1.0, samp_rate, 470005, 2000)
   states:
     bus_sink: false
     bus_source: false
@@ -289,7 +289,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: firdes.low_pass(1.0, samp_rate, 420762.99262587266, 2000)
+    value: firdes.low_pass(1.0, samp_rate, 429993.99262587266, 2000)
   states:
     bus_sink: false
     bus_source: false
@@ -301,7 +301,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: firdes.low_pass(1.0, samp_rate, 115774.37517887364, 2000)
+    value: firdes.low_pass(1.0, samp_rate, 125005.37517887364, 2000)
   states:
     bus_sink: false
     bus_source: false

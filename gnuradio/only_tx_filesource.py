@@ -141,7 +141,7 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
         self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('pluto.local' if 'pluto.local' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
-        self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth_1)
+        self.iio_pluto_sink_0.set_bandwidth(1000000)
         self.iio_pluto_sink_0.set_frequency(fc)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
         self.iio_pluto_sink_0.set_attenuation(0, 20)
@@ -204,7 +204,6 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
     def set_signal_bandwidth_1(self, signal_bandwidth_1):
         self.signal_bandwidth_1 = signal_bandwidth_1
-        self.iio_pluto_sink_0.set_bandwidth(self.signal_bandwidth_1)
 
     def get_signal_bandwidth(self):
         return self.signal_bandwidth
