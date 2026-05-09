@@ -9,13 +9,14 @@ SIGNAL_TX_ON = True
 # 参数
 NUM_SAMPS = 1e5 # 10Hz
 
-TIMEOUT_DEVICE_SEARCH = 5
+TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.1
 TIMEOUT_ROS_FACTION_QUERY = 5
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 5.0
 TIMEOUT_INF_LEVEL = 5
 TIMEOUT_STOP_WORKER_JOIN = 2.0
 TIMEOUT_ENSURE_WORKER_STOPPED = 3.0
+INTERVAL_GET_IIO_INFO = 5.0
 
 from dataclasses import dataclass
 from extract_usb import *
@@ -24,14 +25,20 @@ class DeviceConfig:
 	device_sig : str
 	device_inf : str
 	device_backup : str
+	device_sig_addr : str | None
+	device_inf_addr : str | None
 
 # 配置设备使用
 # pluto设备使用序列号
 # rtlsdr用字符串"rtlsdr"
 device_conf = DeviceConfig(
-	device_sig=SERIAL_PLUTO_NANO_2,
-	device_inf=SERIAL_PLUTO_SDR,
-	device_backup="rtlsdr"
+	# device_sig=SERIAL_PLUTO_NANO_2,
+	# device_inf=SERIAL_PLUTO_SDR,
+	device_sig=SERIAL_PLUTO_SDR,
+	device_inf=SERIAL_PLUTO_NANO_2,
+	device_backup="rtlsdr",
+	device_sig_addr=None,
+	device_inf_addr=None,
 )
 
 @dataclass
@@ -51,7 +58,7 @@ class SimSigType(Enum):
 	INF2_PATH = "/home/ubuntu/radar2026/radio26/inf2.iq"
 
 from def_signal import *
-# 模拟发送的iq信号配置 在本程序中仅支持发送信号源 使用device_sig
+# 模拟发送的iq信号配置 在本程序中仅支持发送信号源 使用device_inf
 tx_config = SigTxConfig(
 	center_freq=FC_RED,
 	sample_rate=SAMP_RATE,
@@ -62,6 +69,9 @@ tx_config = SigTxConfig(
 
 
 # ------分界线------
+
+# 避免反复尝试iio_info导致延迟过大
+last_get_iio_info_time = 0
 
 import sys
 # 强制处理 librtlsdr 的依赖冲突 (libusb 符号问题)
@@ -80,6 +90,7 @@ if sys.platform == "linux":
         pass
 
 import json
+import gc
 from collections.abc import Callable
 from pathlib import Path
 import sys
@@ -380,7 +391,7 @@ def main(devices:DeviceConfig,
 			target=_worker_thread,
 			name=name,
 			args=(name, rx_config, stop_event, _on_decoded, qt_app, ros_publish_queue),
-			daemon=True,
+			daemon=False,
 		)
 		with status_lock:
 			thread_threads[name] = thread
@@ -397,10 +408,14 @@ def main(devices:DeviceConfig,
 		with status_lock:
 			stop_event = thread_stop_events.get(name)
 			thread = thread_threads.get(name)
+			device = thread_devices.get(name)
 		if stop_event is not None:
 			stop_event.set()
 		if thread is not None:
 			thread.join(timeout=join_timeout)
+			if thread.is_alive() and device and device != "rtlsdr":
+				_force_release_pluto(device)
+				thread.join(timeout=join_timeout)
 			return not thread.is_alive()
 		return True
 
@@ -414,13 +429,31 @@ def main(devices:DeviceConfig,
 				thread = thread_threads.get(name)
 			if thread is None or not thread.is_alive():
 				return True
-			thread.join(timeout=0.1)
+			thread.join(timeout=1)
 		return False
 
-	def _report_stop_failure(name: str, context: str) -> None:
-		message = f"{name} did not stop within timeout during {context}"
-		exception_queue.put((name, RuntimeError(message)))
-		logging.warning(message)
+
+	def _force_release_pluto(serial: str, retries: int = 2) -> bool:
+		for _ in range(retries):
+			try:
+				usb_name = _query_device_addr(RxConfig(device=serial, type="sig" if serial == devices.device_sig else "inf"))
+				if usb_name is None:
+					return False
+				sdr = adi.Pluto(usb_name)
+				for attr in ("tx_destroy_buffer", "rx_destroy_buffer"):
+					fn = getattr(sdr, attr, None)
+					if callable(fn):
+						try:
+							fn()
+						except Exception:
+							pass
+				del sdr
+				gc.collect()
+				return True
+			except Exception as exc:
+				logging.warning("force release pluto failed for %s: %s", serial, exc)
+				time.sleep(0.2)
+		return False
 
 	def _backup_in_use_by() -> str | None:
 		print("Checking if backup device is in use...")
@@ -674,26 +707,26 @@ def main(devices:DeviceConfig,
 				except Empty:
 					pass
 
-				# 处理 ROS 干扰等级变化
+				# # 处理 ROS 干扰等级变化
 				ros_level_applied = False
-				try:
-					while True:
-						new_level = ros_level_queue.get_nowait()
-						if new_level in (1, 2, 3) and new_level != inf_level:
-							stopped = _ensure_worker_stopped("rx_inf")
-							if stopped:
-								inf_level = new_level
-								with status_lock:
-									inf_device = thread_devices.get("rx_inf", devices.device_inf)
-								rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
-								_start_worker("rx_inf", rx_conf_inf)
-								with status_lock:
-									last_decode_time["rx_inf"] = time.time()
-								ros_level_applied = True
-								logging.info("rx_inf switched to level %s due to ROS command", inf_level)
-								print(f"rx_inf switched to level {inf_level} due to ROS command")
-				except Empty:
-					pass
+				# try:
+				# 	while True:
+				# 		new_level = ros_level_queue.get_nowait()
+				# 		if new_level in (1, 2, 3) and new_level != inf_level:
+				# 			stopped = _ensure_worker_stopped("rx_inf")
+				# 			if stopped:
+				# 				inf_level = new_level
+				# 				with status_lock:
+				# 					inf_device = thread_devices.get("rx_inf", devices.device_inf)
+				# 				rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
+				# 				_start_worker("rx_inf", rx_conf_inf)
+				# 				with status_lock:
+				# 					last_decode_time["rx_inf"] = time.time()
+				# 				ros_level_applied = True
+				# 				logging.info("rx_inf switched to level %s due to ROS command", inf_level)
+				# 				print(f"rx_inf switched to level {inf_level} due to ROS command")
+				# except Empty:
+				# 	pass
 
 				# 干扰等级轮换
 				if not ros_level_applied:
@@ -739,6 +772,30 @@ def main(devices:DeviceConfig,
 			ros_node.stop()
 
 
+def _query_device_addr(rx_config: RxConfig) -> str:
+	# 先尝试从已获取到的usb地址中找到对应序列号的设备，避免重复搜索
+	device = rx_config.device
+	addr = device_conf.device_sig_addr if rx_config.type == "sig" else device_conf.device_inf_addr
+	if addr is not None:
+		print(f"Using cached USB address for {device}: {addr}")
+		logging.log(logging.INFO, f"Using cached USB address for {device}: {addr}")
+		return addr
+
+	devices = get_all_pluto_devices(timeout=10)
+	print(f"Found Pluto devices: {devices}")
+	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
+	serial = device_conf.device_sig if device == "pluto" else device
+	usb_name = get_pluto_usb_by_serial(devices, serial)
+	if usb_name is None:
+		raise ValueError(
+			f"Pluto device not found for serial {serial}. "
+			"Check iio_info -s output and USB connection."
+		)
+	else:
+		# 将找到的地址缓存起来，避免下次重复搜索
+		device_conf.device_sig_addr = usb_name if rx_config.type == "sig" else device_conf.device_sig_addr
+	return usb_name
+
 def work(
 	rx_config:RxConfig,
 	search_timeout=10,
@@ -754,25 +811,10 @@ def work(
 	"""
 	visualize_on = bool(visualize_on and qt_app is not None)
 
-	if rx_config.type == "sig" and SIGNAL_TX_ON and rx_config.device == device_conf.device_sig:
-		try:
-			tx_sig(tx_config)
-		except Exception as exc:
-			logging.exception("tx_sig failed")
-			print(f"tx_sig failed: {exc}")
-
 	device = rx_config.device
 	if device != "rtlsdr": # 使用pluto 需要先用序列号提取对应的iio_context的usb标识
-		devices = get_all_pluto_devices(timeout=search_timeout)
-		print(f"Found Pluto devices: {devices}")
-		logging.log(logging.INFO, f"Found Pluto devices: {devices}")
-		serial = device_conf.device_sig if device == "pluto" else device
-		usb_name = get_pluto_usb_by_serial(devices, serial)
-		if not usb_name:
-			raise ValueError(
-				f"Pluto device not found for serial {serial}. "
-				"Check iio_info -s output and USB connection."
-			)
+		usb_name = _query_device_addr(rx_config)
+			
 		rx_ctrl = pluto_ctrl_rx(
 			ip_addr=usb_name,
 			sample_rate=rx_config.sample_rate,
@@ -826,7 +868,9 @@ def work(
 				logging.log(logging.INFO, f"Recording signal to {filename}")
 				print(f"Recording signal to {filename}")
 			while True:
+				# 线程退出逻辑
 				if stop_event is not None and stop_event.is_set():
+					rx_ctrl.close() if device == "pluto" else None
 					break
 				samples = rx_ctrl.rx()
 				if record_file is not None and samples is not None:
@@ -872,49 +916,47 @@ def work(
 			pass
 
 
-
-def tx_sig(sigTxConfig: SigTxConfig) -> None:
-	"""开启模拟的信号发送"""
-	if not sigTxConfig.iq_file:
-		raise ValueError("iq_file is required for tx_sig")
-	devices = get_all_pluto_devices(timeout=TIMEOUT_DEVICE_SEARCH)
-	print(f"Found Pluto devices: {devices}")
-	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
-	serial = device_conf.device_sig
-	usb_name = get_pluto_usb_by_serial(devices, serial)
-	print(f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
-	logging.log(logging.INFO, f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
-
-	sdr = adi.Pluto(usb_name)
-	sdr.sample_rate = int(sigTxConfig.sample_rate)
-	sdr.tx_rf_bandwidth = int(sigTxConfig.sample_rate)
-	sdr.tx_lo = int(sigTxConfig.center_freq)
-	sdr.tx_hardwaregain_chan0 = int(sigTxConfig.tx_gain)
-	sdr.tx_cyclic_buffer = True
-
-	sample_count = int(sigTxConfig.num_samps)
-	samples = np.fromfile(sigTxConfig.iq_file, dtype=np.complex64, count=sample_count)
-	if samples.size == 0:
-		raise ValueError(f"No samples loaded from {sigTxConfig.iq_file}")
-	if samples.size < sample_count:
-		logging.warning(
-			"Requested %d samples but only %d available in %s",
-			sample_count,
-			samples.size,
-			sigTxConfig.iq_file,
-		)
-	sdr.tx_buffer_size = int(samples.size)
-	sdr.tx(samples)
-	print("Started transmitting signal from file: %s", sigTxConfig.iq_file)
-	logging.log(logging.INFO, "Started transmitting signal from file: %s", sigTxConfig.iq_file)
-
-
 if __name__ == "__main__":
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.INFO, filename=LOG_FILE_PATH, filemode='w')
 
 	if SIGNAL_TX_ON:
-		tx_sig(tx_config)
+		if not tx_config.iq_file:
+			raise ValueError("iq_file is required for tx_sig")
+		devices = get_all_pluto_devices(timeout=10)
+		print(f"Found Pluto devices: {devices}")
+		logging.log(logging.INFO, f"Found Pluto devices: {devices}")
+		serial = device_conf.device_inf
+		usb_name = get_pluto_usb_by_serial(devices, serial)
+		print(f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
+		logging.log(logging.INFO, f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
+
+		sdr = adi.Pluto(usb_name)
+		sdr.sample_rate = int(tx_config.sample_rate)
+		sdr.tx_rf_bandwidth = int(tx_config.sample_rate)
+		sdr.tx_lo = int(tx_config.center_freq)
+		sdr.tx_hardwaregain_chan0 = int(0.0)
+		sdr.tx_cyclic_buffer = True
+
+		sample_count = int(tx_config.num_samps)
+		samples = np.fromfile(tx_config.iq_file, dtype=np.complex64, count=sample_count)
+		if samples.size == 0:
+			raise ValueError(f"No samples loaded from {tx_config.iq_file}")
+		if samples.size < sample_count:
+			logging.warning(
+				"Requested %d samples but only %d available in %s",
+				sample_count,
+				samples.size,
+				tx_config.iq_file,
+			)
+		sdr.tx_buffer_size = int(samples.size)
+		print(samples)
+		samples *= 2 ** 14
+		print(samples)
+		print(samples.shape)
+		sdr.tx(samples)
+		print("Started transmitting signal from file: %s", tx_config.iq_file)
+		logging.log(logging.INFO, "Started transmitting signal from file: %s", tx_config.iq_file)
 
 	if VISUALIZE_ON:
 		app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
@@ -935,12 +977,20 @@ if __name__ == "__main__":
 			target=main,
 			args=(device_conf,),
 			kwargs={"qt_apps": qt_apps, "stop_event": stop_event},
-			daemon=True,
+			daemon=False,
 		)
 		main_thread.start()
-		app.exec_()
-
-		stop_event.set()
-		main_thread.join(timeout=2.0)
+		try:
+			app.exec_()
+		except KeyboardInterrupt:
+			stop_event.set()
+			app.quit()
+		finally:
+			stop_event.set()
+			main_thread.join(timeout=3.0)
 	else:
-		main(device_conf)
+		stop_event = threading.Event()
+		try:
+			main(device_conf, stop_event=stop_event)
+		except KeyboardInterrupt:
+			stop_event.set()

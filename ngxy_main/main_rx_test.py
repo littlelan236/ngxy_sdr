@@ -163,7 +163,6 @@ def process_chunk(
 	"""处理单个采样块并返回最终 bits。同时进行可视化"""
 
 	complex_samples = _to_1d_array(samples).astype(np.complex128, copy=False)
-	print(complex_samples.shape, complex_samples.dtype)
 	qt_app.add_values(0, complex_samples) if qt_app else None
 	filtered_iq = apply_fft_filter(complex_samples, pre_taps)
 	qt_app.add_values(1, [complex_samples, filtered_iq]) if qt_app else None
@@ -241,7 +240,6 @@ def main(device, rx_config) -> None:
 			if samples is None:
 				qt_app.process_events()
 				time.sleep(0.01)
-				print("maincycle continue")
 				continue
 
 			bits = process_chunk(
@@ -253,7 +251,6 @@ def main(device, rx_config) -> None:
 				qt_app=qt_app,
 			)
 
-			print(f"maincycle running...{time.time():.2f}")
 			qt_app.process_events()
 
 			if bits.size == 0:
@@ -288,16 +285,18 @@ tx_config = SigTxConfig(
 	center_freq=FC_RED,
 	sample_rate=SAMP_RATE,
 	num_samps=327680,
-	tx_gain=-0.0, # -90 to 0
+	tx_gain=-30.0, # -90 to 0
 	iq_file=SimSigType.SIG1_PATH.value,
 )
 import adi
 from main_rx_ctrl import get_all_pluto_devices, get_pluto_usb_by_serial, TIMEOUT_DEVICE_SEARCH, device_conf
-def tx_sig(sigTxConfig: SigTxConfig) -> None:
-	"""开启模拟的信号发送"""
-	if not sigTxConfig.iq_file:
+	
+if __name__ == "__main__":
+	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
+	if not tx_config.iq_file:
 		raise ValueError("iq_file is required for tx_sig")
-	devices = get_all_pluto_devices(timeout=TIMEOUT_DEVICE_SEARCH)
+	devices = get_all_pluto_devices(timeout=10)
 	print(f"Found Pluto devices: {devices}")
 	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
 	serial = device_conf.device_inf
@@ -306,34 +305,35 @@ def tx_sig(sigTxConfig: SigTxConfig) -> None:
 	logging.log(logging.INFO, f"Using Pluto device with serial {serial} at USB address {usb_name} for transmission")
 
 	sdr = adi.Pluto(usb_name)
-	sdr.sample_rate = int(sigTxConfig.sample_rate)
-	sdr.tx_rf_bandwidth = int(sigTxConfig.sample_rate)
-	sdr.tx_lo = int(sigTxConfig.center_freq)
-	sdr.tx_hardwaregain_chan0 = int(sigTxConfig.tx_gain)
+	sdr.sample_rate = int(tx_config.sample_rate)
+	sdr.tx_rf_bandwidth = int(tx_config.sample_rate)
+	sdr.tx_lo = int(tx_config.center_freq)
+	sdr.tx_hardwaregain_chan0 = int(0.0)
 	sdr.tx_cyclic_buffer = True
 
-	sample_count = int(sigTxConfig.num_samps)
-	samples = np.fromfile(sigTxConfig.iq_file, dtype=np.complex64, count=sample_count)
+	sample_count = int(tx_config.num_samps)
+	samples = np.fromfile(tx_config.iq_file, dtype=np.complex64, count=sample_count)
 	if samples.size == 0:
-		raise ValueError(f"No samples loaded from {sigTxConfig.iq_file}")
+		raise ValueError(f"No samples loaded from {tx_config.iq_file}")
 	if samples.size < sample_count:
 		logging.warning(
 			"Requested %d samples but only %d available in %s",
 			sample_count,
 			samples.size,
-			sigTxConfig.iq_file,
+			tx_config.iq_file,
 		)
 	sdr.tx_buffer_size = int(samples.size)
+	print(samples)
+	samples *= 2 ** 14
+	print(samples)
+	print(samples.shape)
 	sdr.tx(samples)
-	print("Started transmitting signal from file: %s", sigTxConfig.iq_file)
-	logging.log(logging.INFO, "Started transmitting signal from file: %s", sigTxConfig.iq_file)
+	print("Started transmitting signal from file: %s", tx_config.iq_file)
+	logging.log(logging.INFO, "Started transmitting signal from file: %s", tx_config.iq_file)
 
 
-if __name__ == "__main__":
-	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
-	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
 	rx_config = RxConfig(
-		ip_addr="usb:1.19.5",
+		ip_addr="usb:1.34.5",
 		sample_rate=1e6,
 		center_freq=433.2e6,
 		num_samps=100000,
