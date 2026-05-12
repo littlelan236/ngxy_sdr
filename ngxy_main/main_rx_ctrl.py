@@ -4,11 +4,12 @@
 # 选项
 VISUALIZE_ON = True
 RECORD_SIGNAL_ON = True
-SIGNAL_TX_ON = True
+SIGNAL_TX_ON = False
 
 # 参数
 NUM_SAMPS = 1e5 # 10Hz
 
+THRESHOLD_ERR_COUNT = 10
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.1
 TIMEOUT_ROS_FACTION_QUERY = 5
@@ -27,6 +28,7 @@ class DeviceConfig:
 	device_backup : str
 	device_sig_addr : str | None
 	device_inf_addr : str | None
+	device_backup_addr : str | None
 
 # 配置设备使用
 # pluto设备使用序列号
@@ -39,6 +41,7 @@ device_conf = DeviceConfig(
 	device_backup="rtlsdr",
 	device_sig_addr=None,
 	device_inf_addr=None,
+	device_backup_addr=None,
 )
 
 @dataclass
@@ -140,7 +143,7 @@ except ImportError:
 # 接收信号的子线程的配置模版
 @dataclass
 class RxConfig:
-	device : str = "pluto" # 或"rtlsdr"
+	device : str | None = None # pluto设备的序列号 或 "rtlsdr"
 	type : str = "sig" # 或"inf"
 	center_freq: float = FC_RED
 	sample_rate: float = SAMP_RATE
@@ -304,12 +307,32 @@ def main(devices:DeviceConfig,
 		"rx_sig": devices.device_sig,
 		"rx_inf": devices.device_inf,
 	}
+	# 将多次故障的设备记录下来
+	error_counts: dict[str, int] = {}
+	error_logged: set[str] = set()
+	error_log_path = CURRENT_DIR / "error"
+	for device in (devices.device_sig, devices.device_inf, devices.device_backup):
+		if device:
+			error_counts.setdefault(device, 0)
 
 	def _should_stop() -> bool:
 		return stop_event is not None and stop_event.is_set()
 
 	def _on_ros_encrypt_level_change(new_level: int) -> None:
 		ros_level_queue.put(new_level)
+
+	def _record_device_error(device: str | None) -> None:
+		if not device:
+			return
+		count = error_counts.get(device, 0) + 1
+		error_counts[device] = count
+		if count > THRESHOLD_ERR_COUNT and device not in error_logged:
+			try:
+				with error_log_path.open("a", encoding="utf-8") as handle:
+					handle.write(f"{device}\n")
+				error_logged.add(device)
+			except Exception as exc:
+				logging.warning("Failed to record device error for %s: %s", device, exc)
 
 	def _build_sig_config(device: str, site: CurrentSite) -> RxConfig:
 		return RxConfig(
@@ -446,7 +469,7 @@ def main(devices:DeviceConfig,
 	def _force_release_pluto(serial: str, retries: int = 2) -> bool:
 		for _ in range(retries):
 			try:
-				usb_name = query_device_addr(RxConfig(device=serial, type="sig" if serial == devices.device_sig else "inf"))
+				usb_name = query_device_addr(RxConfig(device=serial, type="sig" if serial == devices.device_sig else "inf")) # 这里的type其实无所谓
 				if usb_name is None:
 					return False
 				sdr = adi.Pluto(usb_name)
@@ -694,6 +717,7 @@ def main(devices:DeviceConfig,
 
 						with status_lock:
 							current_device = thread_devices.get(name)
+						_record_device_error(current_device)
 						backup_owner = _backup_in_use_by()
 						# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
 						if devices.device_backup and backup_owner is None:
@@ -794,16 +818,26 @@ def main(devices:DeviceConfig,
 def query_device_addr(rx_config: RxConfig) -> str:
 	# 先尝试从已获取到的usb地址中找到对应序列号的设备，避免重复搜索
 	device = rx_config.device
-	addr = device_conf.device_sig_addr if rx_config.type == "sig" else device_conf.device_inf_addr
+	if device == "rtlsdr":
+		print("Using RTL-SDR device, no need to query USB address.")
+		logging.log(logging.INFO, "Using RTL-SDR device, no need to query USB address.")
+		return None
+	if rx_config.device == device_conf.device_sig:
+		addr = device_conf.device_sig_addr
+	elif rx_config.device == device_conf.device_inf:
+		addr = device_conf.device_inf_addr
+	else:
+		addr = device_conf.device_backup_addr
+
 	if addr is not None:
 		print(f"Using cached USB address for {device}: {addr}")
 		logging.log(logging.INFO, f"Using cached USB address for {device}: {addr}")
 		return addr
 
-	devices = get_all_pluto_devices(timeout=10)
+	devices = get_all_pluto_devices(timeout=TIMEOUT_DEVICE_SEARCH)
 	print(f"Found Pluto devices: {devices}")
 	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
-	serial = device_conf.device_sig if device == "pluto" else device
+	serial = device
 	usb_name = get_pluto_usb_by_serial(devices, serial)
 	if usb_name is None:
 		raise ValueError(
@@ -812,12 +846,16 @@ def query_device_addr(rx_config: RxConfig) -> str:
 		)
 	else:
 		# 将找到的地址缓存起来，避免下次重复搜索
-		device_conf.device_sig_addr = usb_name if rx_config.type == "sig" else device_conf.device_sig_addr
+		if rx_config.device == device_conf.device_sig:
+			device_conf.device_sig_addr = usb_name
+		elif rx_config.device == device_conf.device_inf:
+			device_conf.device_inf_addr = usb_name
+		else:
+			device_conf.device_backup_addr = usb_name
 	return usb_name
 
 def work(
 	rx_config:RxConfig,
-	search_timeout=10,
 	stop_event: threading.Event | None = None,
 	on_decoded: Callable[[list], None] | None = None,
 	qt_app: ScrollChartsApp | None = None,
@@ -889,7 +927,7 @@ def work(
 			while True:
 				# 线程退出逻辑
 				if stop_event is not None and stop_event.is_set():
-					rx_ctrl.close() if device == "pluto" else None
+					rx_ctrl.close() if device != "rtlsdr" else None
 					break
 				samples = rx_ctrl.rx()
 				if record_file is not None and samples is not None:
