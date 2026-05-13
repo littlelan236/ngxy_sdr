@@ -2,22 +2,18 @@
 # -*- coding: utf-8 -*-
 
 # 选项
-VISUALIZE_ON = True
-# VISUALIZE_ON = False
+VISUALIZE_ON = False
 RECORD_SIGNAL_ON = True
 SIGNAL_TX_ON = False
-# ONLY_LEVEL_1 = False
-ONLY_LEVEL_1 = True # 是否主动保持一级干扰
+ONLY_LEVEL_1 = False # 是否主动保持一级干扰
 
 # 参数
-NUM_SAMPS = 1e5 # 10Hz
+NUM_SAMPS = 4e4 # 10Hz
 THRESHOLD_ERR_COUNT = 5
 TIMEOUT_DEVICE_SEARCH = 15
-INTERVAL_MAIN_CYCLE = 0.05
-# TIMEOUT_ROS_FACTION_QUERY = 10000
-TIMEOUT_ROS_FACTION_QUERY = 3
-# INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
-INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 10000
+INTERVAL_MAIN_CYCLE = 0.02
+TIMEOUT_ROS_FACTION_QUERY = 1000
+INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
 TIMEOUT_FACTION_SHARCH = 5
 TIMEOUT_INF_LEVEL = 7
 TIMEOUT_STOP_WORKER_JOIN = 2.0
@@ -39,8 +35,8 @@ class DeviceConfig:
 # rtlsdr用字符串"rtlsdr"
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
-	device_inf=SERIAL_PLUTO_NANO_0,
-	device_backup=SERIAL_PLUTO_SDR,
+	device_inf=SERIAL_PLUTO_SDR,
+	device_backup=SERIAL_PLUTO_NANO_0,
 	device_sig_addr=None,
 	device_inf_addr=None,
 	device_backup_addr=None,
@@ -720,8 +716,6 @@ def main(devices:DeviceConfig,
 		_clear_worker_queues("rx_inf")
 		
 		while True:
-			print("-------------------------------------")
-			logging.log(logging.DEBUG, "------------------------------------")
 
 			if _should_stop():
 				break
@@ -843,7 +837,7 @@ def main(devices:DeviceConfig,
 							if time.time() - inf_last >= inf_level_timeout:
 								stopped = _ensure_worker_stopped("rx_inf")
 								if stopped:
-									inf_level = 1 if inf_level >= 3 else inf_level + 1
+									inf_level = 1 if inf_level >= 2 else inf_level + 1
 									rx_conf_inf = _build_inf_config(inf_level, inf_device, current_site)
 									_start_worker("rx_inf", rx_conf_inf)
 									logging.info("rx_inf switched to next level %d due to timeout", inf_level)
@@ -1117,7 +1111,7 @@ def tx_ctrl(tx_config: SigTxConfig) -> None:
 
 if __name__ == "__main__":
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
-	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
+	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.INFO, filename=LOG_FILE_PATH, filemode='w')
 
 	if SIGNAL_TX_ON:
 		tx_ctrl(tx_config)
