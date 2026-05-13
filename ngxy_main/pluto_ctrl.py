@@ -18,10 +18,11 @@ if sys.platform == "linux":
 from rtlsdr import RtlSdr
 
 class pluto_ctrl_rx:
-	def __init__(self, ip_addr='ip:192.168.2.4', sample_rate=1e6, center_freq=433e6,
+	def __init__(self, ip_addr='ip:192.168.2.4', sample_rate=1e6, bandwidth=1e6, center_freq=433e6,
 				 num_samps=32767, rx_hardwaregain_chan0=70.0, agc_mode='slow_attack'):
 		"""agc_mode: 'manual' or 'fast_attack' or 'slow_attack'"""
 		self.sample_rate = int(sample_rate)
+		self.bandwidth = int(bandwidth)
 		self.center_freq = int(center_freq)
 		self.num_samps = int(num_samps)
 
@@ -31,7 +32,7 @@ class pluto_ctrl_rx:
 			self.sdr.rx_hardwaregain_chan0 = rx_hardwaregain_chan0
 		self.sdr.rx_lo = self.center_freq
 		self.sdr.sample_rate = self.sample_rate
-		self.sdr.rx_rf_bandwidth = self.sample_rate
+		self.sdr.rx_rf_bandwidth = self.bandwidth
 		self.sdr.rx_buffer_size = self.num_samps
 
 	def rx(self):

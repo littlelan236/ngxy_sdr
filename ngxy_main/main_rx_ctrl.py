@@ -3,23 +3,25 @@
 
 # 选项
 VISUALIZE_ON = True
+# VISUALIZE_ON = False
 RECORD_SIGNAL_ON = True
 SIGNAL_TX_ON = False
-ONLY_LEVEL_1 = False # 是否主动保持一级干扰
+# ONLY_LEVEL_1 = False
+ONLY_LEVEL_1 = True # 是否主动保持一级干扰
 
 # 参数
 NUM_SAMPS = 1e5 # 10Hz
-
-THRESHOLD_ERR_COUNT = 3
+THRESHOLD_ERR_COUNT = 5
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.05
-TIMEOUT_ROS_FACTION_QUERY = 5
-INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 5.0
-TIMEOUT_FACTION_SHARCH = 5.0
+# TIMEOUT_ROS_FACTION_QUERY = 10000
+TIMEOUT_ROS_FACTION_QUERY = 3
+# INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
+INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 10000
+TIMEOUT_FACTION_SHARCH = 5
 TIMEOUT_INF_LEVEL = 7
 TIMEOUT_STOP_WORKER_JOIN = 2.0
 TIMEOUT_ENSURE_WORKER_STOPPED = 3.0
-INTERVAL_GET_IIO_INFO = 5.0
 
 from dataclasses import dataclass
 from extract_usb import *
@@ -37,8 +39,8 @@ class DeviceConfig:
 # rtlsdr用字符串"rtlsdr"
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
-	device_inf=SERIAL_PLUTO_SDR,
-	device_backup=SERIAL_PLUTO_NANO_1,
+	device_inf=SERIAL_PLUTO_NANO_0,
+	device_backup=SERIAL_PLUTO_SDR,
 	device_sig_addr=None,
 	device_inf_addr=None,
 	device_backup_addr=None,
@@ -157,8 +159,8 @@ qt_gui_configs = [
 	# 时域图
 	ChartConfig(
 		num_series=1,
-		buffer_size=1024,
-		autoscale=False,
+		buffer_size=512,
+		autoscale=True,
 		y_range=(-2.0, 2.0),
 		hline_values=[0.0],
 		title='原始信号',
@@ -167,7 +169,7 @@ qt_gui_configs = [
 	# 频域图 滤波前与滤波后
 	ChartConfig(
 		num_series=2,
-		buffer_size=4096,
+		buffer_size=256,
 		y_range=(-90.0, 0.0),
 		hline_values=[],
 		title='信号频谱',
@@ -180,7 +182,7 @@ qt_gui_configs = [
 	# 正交鉴频后与二次滤波后
 	ChartConfig(
 		num_series=2,
-		buffer_size=1024,
+		buffer_size=512,
 		autoscale=True,
 		y_range=(-2.0, 2.0),
 		hline_values=[0.0],
@@ -536,8 +538,6 @@ def main(devices:DeviceConfig,
 			try:
 				while True:
 					name, exc = exception_queue.get_nowait()
-					print("----------------------------")
-					print(name, exec)
 					if isinstance(exc, KeyboardInterrupt):
 						interrupt_seen = True
 						continue
@@ -720,6 +720,9 @@ def main(devices:DeviceConfig,
 		_clear_worker_queues("rx_inf")
 		
 		while True:
+			print("-------------------------------------")
+			logging.log(logging.DEBUG, "------------------------------------")
+
 			if _should_stop():
 				break
 			# 处理子线程上报的 ROS 发布消息
@@ -747,10 +750,12 @@ def main(devices:DeviceConfig,
 				pass
 
 			# 每两轮操作设备起停设置一个时间间隔，避免过于频繁地切换设备
-			if time.time() - last_device_ctrl_time >= 2 * main_cycle_device_ctrl_interval:
+			if time.time() - last_device_ctrl_time >=  main_cycle_device_ctrl_interval:
+				# print("-----------------------------------------")
+				# print(time.time(), last_decode_time)
 
 				# 处理异常，必要时切换到备用设备
-				try:
+				try: 
 					while True:
 						name, exc = exception_queue.get_nowait()
 						print(f"Worker {name} error: {exc}")
@@ -762,8 +767,8 @@ def main(devices:DeviceConfig,
 							current_device = thread_devices.get(name)
 						_record_device_error(current_device)
 						backup_owner = _backup_in_use_by()
-						# 当备用设备空闲时，直接将出现问题的线程切换至备用设备
-						if devices.device_backup and backup_owner is None:
+						# 当备用设备空闲且当前未在备用设备上时，切换到备用设备
+						if devices.device_backup and backup_owner is None and current_device != devices.device_backup:
 							_stop_worker(name)
 							if name == "rx_inf":
 								rx_conf_inf = _build_inf_config(inf_level, devices.device_backup, current_site)
@@ -784,6 +789,19 @@ def main(devices:DeviceConfig,
 									restart_attempted[name] = True
 								_stop_worker(name)
 								main_device = main_device_map.get(name)
+								if name == "rx_inf":
+									rx_conf_inf = _build_inf_config(inf_level, main_device, current_site)
+									_start_worker("rx_inf", rx_conf_inf)
+								else:
+									rx_conf_sig = _build_sig_config(main_device, current_site)
+									_start_worker("rx_sig", rx_conf_sig)
+						# 备用设备自身报错时，回退尝试主设备
+						elif current_device == devices.device_backup:
+							logging.log(logging.INFO, f"Backup device failed for {name}; attempting to restart main device.")
+							print(f"Backup device failed for {name}; attempting to restart main device.")
+							main_device = main_device_map.get(name)
+							if main_device is not None:
+								_stop_worker(name)
 								if name == "rx_inf":
 									rx_conf_inf = _build_inf_config(inf_level, main_device, current_site)
 									_start_worker("rx_inf", rx_conf_inf)
@@ -847,7 +865,7 @@ def main(devices:DeviceConfig,
 						_start_worker("rx_inf", rx_conf_inf)
 
 					# 更新设备控制时间戳
-					last_device_ctrl_time = time.time()
+				last_device_ctrl_time = time.time()
 
 			time.sleep(main_cycle_update_interval)
 	finally:
@@ -914,16 +932,59 @@ def work(
 
 	device = rx_config.device
 	if device != "rtlsdr": # 使用pluto 需要先用序列号提取对应的iio_context的usb标识
+		def _clear_cached_addr() -> None:
+			if rx_config.device == device_conf.device_sig:
+				device_conf.device_sig_addr = None
+			elif rx_config.device == device_conf.device_inf:
+				device_conf.device_inf_addr = None
+			else:
+				device_conf.device_backup_addr = None
+			print(f"Cleared cached USB address for {device}")
+			logging.log(logging.INFO, f"Cleared cached USB address for {device}")
+
 		usb_name = query_device_addr(rx_config)
-			
-		rx_ctrl = pluto_ctrl_rx(
-			ip_addr=usb_name,
-			sample_rate=rx_config.sample_rate,
-			center_freq=rx_config.center_freq,
-			num_samps=rx_config.num_samps,
-			rx_hardwaregain_chan0=rx_config.rx_gain,
-			agc_mode=rx_config.agc_mode,
-		)
+		if rx_config.type == "sig":
+			bandwidth = BW_SIG
+		elif rx_config.type == "inf":
+			if rx_config.center_freq in (FC_RED_1, FC_BLUE_1):
+				bandwidth = BW_1
+			elif rx_config.center_freq in (FC_RED_2, FC_BLUE_2):
+				bandwidth = BW_2
+			else:
+				bandwidth = BW_3
+		try:
+			rx_ctrl = pluto_ctrl_rx(
+				ip_addr=usb_name,
+				sample_rate=rx_config.sample_rate,
+				center_freq=rx_config.center_freq,
+				bandwidth=bandwidth,
+				num_samps=rx_config.num_samps,
+				rx_hardwaregain_chan0=rx_config.rx_gain,
+				agc_mode=rx_config.agc_mode,
+			)
+		except Exception:
+			# If we used a cached USB address, clear it and retry once.
+			cached_addr = None
+			if rx_config.device == device_conf.device_sig:
+				cached_addr = device_conf.device_sig_addr
+			elif rx_config.device == device_conf.device_inf:
+				cached_addr = device_conf.device_inf_addr
+			else:
+				cached_addr = device_conf.device_backup_addr
+			if cached_addr == usb_name:
+				_clear_cached_addr()
+				usb_name = query_device_addr(rx_config)
+				rx_ctrl = pluto_ctrl_rx(
+					ip_addr=usb_name,
+					sample_rate=rx_config.sample_rate,
+					center_freq=rx_config.center_freq,
+					bandwidth=bandwidth,
+					num_samps=rx_config.num_samps,
+					rx_hardwaregain_chan0=rx_config.rx_gain,
+					agc_mode=rx_config.agc_mode,
+				)
+			else:
+				raise
 	else:
 		rx_ctrl = rtl_sdr_ctrl(
 			sample_rate=rx_config.sample_rate,
@@ -942,8 +1003,8 @@ def work(
 
 	# 预热可能存在的 JIT 路径，避免首包处理时出现明显卡顿。
 	try:
-		discriminator.process(np.zeros(32, dtype=np.complex128))
-		symbol_sync.process(np.zeros(256, dtype=np.float64))
+		discriminator.process(np.zeros(32, dtype=np.complex64))
+		symbol_sync.process(np.zeros(256, dtype=np.float32))
 		symbol_sync.reset()
 	except Exception:
 		pass
@@ -973,7 +1034,7 @@ def work(
 				if stop_event is not None and stop_event.is_set():
 					rx_ctrl.close() if device != "rtlsdr" else None
 					break
-				samples = rx_ctrl.rx()
+				samples = rx_ctrl.rx().astype(np.complex64)
 				if record_file is not None and samples is not None:
 					samples.tofile(record_file)
 				if samples is None:
@@ -1038,7 +1099,7 @@ def tx_ctrl(tx_config: SigTxConfig) -> None:
 	
 
 	sample_count = int(tx_config.num_samps)
-	samples = np.fromfile(tx_config.iq_file, dtype=np.complex64, count=sample_count)
+	samples = np.fromfile(tx_config.iq_file)
 	if samples.size == 0:
 		raise ValueError(f"No samples loaded from {tx_config.iq_file}")
 	if samples.size < sample_count:
@@ -1056,7 +1117,7 @@ def tx_ctrl(tx_config: SigTxConfig) -> None:
 
 if __name__ == "__main__":
 	LOG_FILE_PATH = CURRENT_DIR / f"main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
-	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.INFO, filename=LOG_FILE_PATH, filemode='w')
+	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.DEBUG, filename=LOG_FILE_PATH, filemode='w')
 
 	if SIGNAL_TX_ON:
 		tx_ctrl(tx_config)
