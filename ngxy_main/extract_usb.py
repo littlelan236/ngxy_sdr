@@ -3,8 +3,8 @@ import re
 
 SERIAL_PLUTO_NANO_2 = "03df62bf070f233332d76ab70f173b2b2a"
 SERIAL_PLUTO_SDR = "104473023196000bf5ff1a00aae12c3ca8"
-SERIAL_PLUTO_NANO_1 = None
-SERIAL_PLUTO_NANO_0 = None
+SERIAL_PLUTO_NANO_1 = "03df62b31fd72e102ed76abb17cf360836"
+SERIAL_PLUTO_NANO_0 = "03df62c64f9f11263cd76ace4787093e24"
 
 def get_all_pluto_devices(timeout=15):
     """获取所有 PlutoSDR 设备及其信息（包括序列号和 USB 地址）"""
