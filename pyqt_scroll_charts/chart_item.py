@@ -3,6 +3,7 @@ from PyQt5.QtChart import QChart, QChartView, QLineSeries
 from PyQt5.QtGui import QPainter, QColor, QFont
 from PyQt5.QtCore import Qt
 from collections import deque
+import itertools
 import numpy as np
 
 
@@ -48,23 +49,38 @@ def _append_chunk_to_buffer(buf: deque, value) -> None:
         buf.extend(flat.tolist())
         return
 
-    if isinstance(value, (list, tuple, deque)):
+    if isinstance(value, (list, tuple)):
         if len(value) == 0:
             return
         if maxlen is not None and len(value) >= maxlen:
             buf.clear()
-            buf.extend(list(value)[-maxlen:])
+            buf.extend(value[-maxlen:])
+            return
+        buf.extend(value)
+        return
+
+    if isinstance(value, deque):
+        if len(value) == 0:
+            return
+        if maxlen is not None and len(value) >= maxlen:
+            start = len(value) - maxlen
+            tail = list(itertools.islice(value, start, None))
+            buf.clear()
+            buf.extend(tail)
             return
         buf.extend(value)
         return
 
     if _is_iterable_samples(value):
+        if maxlen is not None:
+            tail = deque(value, maxlen=maxlen)
+            if len(tail) == 0:
+                return
+            buf.clear()
+            buf.extend(tail)
+            return
         seq = _to_sample_list(value)
         if len(seq) == 0:
-            return
-        if maxlen is not None and len(seq) >= maxlen:
-            buf.clear()
-            buf.extend(seq[-maxlen:])
             return
         buf.extend(seq)
         return

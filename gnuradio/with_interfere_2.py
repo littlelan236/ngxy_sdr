@@ -14,7 +14,7 @@ from gnuradio import qtgui
 from gnuradio import analog
 import math
 from gnuradio import blocks
-import pmt
+import numpy
 from gnuradio import digital
 from gnuradio import filter
 from gnuradio.filter import firdes
@@ -327,9 +327,9 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.3.1' if '192.168.3.1' else iio.get_pluto_uri(), [True, True], (32768 * 16))
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
-        self.iio_pluto_source_0.set_frequency(fc_blue)
+        self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
         self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
         self.iio_pluto_source_0.set_gain(0, 64)
@@ -337,19 +337,19 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0_0_0 = iio.fmcomms2_sink_fc32('192.168.3.2' if '192.168.3.2' else iio.get_pluto_uri(), [True, True], 32768, True)
+        self.iio_pluto_sink_0_0_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 32768, True)
         self.iio_pluto_sink_0_0_0.set_len_tag_key('')
         self.iio_pluto_sink_0_0_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0_0_0.set_frequency(fc_blue_2)
+        self.iio_pluto_sink_0_0_0.set_frequency(fc_2)
         self.iio_pluto_sink_0_0_0.set_samplerate(samp_rate)
         self.iio_pluto_sink_0_0_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0_0_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.3.1' if '192.168.3.1' else iio.get_pluto_uri(), [True, True], 32768, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0.set_frequency(fc_blue)
+        self.iio_pluto_sink_0.set_frequency(fc)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 50)
+        self.iio_pluto_sink_0.set_attenuation(0, 40)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
         self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
         self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
@@ -386,10 +386,9 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.blocks_pack_k_bits_bb_0_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_pack_k_bits_bb_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_char*1, 'C:\\Users\\wangt\\Desktop\\ngxy_sdr_3\\gnuradio\\interfere_bitstream', True, 0, 0)
-        self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
         self.blocks_char_to_float_0_0_0 = blocks.char_to_float(1, 1)
         self.blocks_char_to_float_0_0 = blocks.char_to_float(1, 1)
+        self.analog_random_source_x_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 1000))), True)
         self.analog_quadrature_demod_cf_0_0 = analog.quadrature_demod_cf((1 / 1.5))
         self.analog_quadrature_demod_cf_0 = analog.quadrature_demod_cf((1 / 1.5))
 
@@ -400,10 +399,10 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.fft_filter_xxx_1_0, 0))
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 1))
         self.connect((self.analog_quadrature_demod_cf_0_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 0))
+        self.connect((self.analog_random_source_x_0, 0), (self.blocks_char_to_float_0_0_0, 0))
+        self.connect((self.analog_random_source_x_0, 0), (self.blocks_pack_k_bits_bb_0_0_0, 0))
         self.connect((self.blocks_char_to_float_0_0, 0), (self.qtgui_time_sink_x_0_0, 0))
         self.connect((self.blocks_char_to_float_0_0_0, 0), (self.qtgui_time_sink_x_0_0, 1))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_char_to_float_0_0_0, 0))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_pack_k_bits_bb_0_0_0, 0))
         self.connect((self.blocks_float_to_char_0, 0), (self.blocks_pack_k_bits_bb_0_0_1, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0, 0), (self.blocks_char_to_float_0_0, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0, 0), (self.digital_gfsk_mod_0, 0))
@@ -506,7 +505,6 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
     def set_fc_blue_2(self, fc_blue_2):
         self.fc_blue_2 = fc_blue_2
-        self.iio_pluto_sink_0_0_0.set_frequency(self.fc_blue_2)
 
     def get_fc_blue_1(self):
         return self.fc_blue_1
@@ -519,8 +517,6 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
     def set_fc_blue(self, fc_blue):
         self.fc_blue = fc_blue
-        self.iio_pluto_sink_0.set_frequency(self.fc_blue)
-        self.iio_pluto_source_0.set_frequency(self.fc_blue)
 
     def get_fc_3(self):
         return self.fc_3
@@ -533,6 +529,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
     def set_fc_2(self, fc_2):
         self.fc_2 = fc_2
+        self.iio_pluto_sink_0_0_0.set_frequency(self.fc_2)
 
     def get_fc_1(self):
         return self.fc_1
@@ -545,6 +542,8 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
     def set_fc(self, fc):
         self.fc = fc
+        self.iio_pluto_sink_0.set_frequency(self.fc)
+        self.iio_pluto_source_0.set_frequency(self.fc)
 
 
 

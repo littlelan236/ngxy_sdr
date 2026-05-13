@@ -288,7 +288,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '20'
+    attenuation1: '0'
     bandwidth: '1000000'
     buffer_size: '3276800'
     comment: ''
