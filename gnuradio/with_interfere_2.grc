@@ -257,6 +257,26 @@ blocks:
     coordinate: [1496, 608.0]
     rotation: 0
     state: enabled
+- name: analog_random_source_x_0
+  id: analog_random_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    max: '2'
+    maxoutbuf: '0'
+    min: '0'
+    minoutbuf: '0'
+    num_samps: '1000'
+    repeat: 'True'
+    type: byte
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [96, 732.0]
+    rotation: 0
+    state: enabled
 - name: blocks_char_to_float_0_0
   id: blocks_char_to_float
   parameters:
@@ -289,28 +309,6 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [376, 640.0]
-    rotation: 0
-    state: enabled
-- name: blocks_file_source_0
-  id: blocks_file_source
-  parameters:
-    affinity: ''
-    alias: ''
-    begin_tag: pmt.PMT_NIL
-    comment: ''
-    file: C:\Users\wangt\Desktop\ngxy_sdr_3\gnuradio\interfere_bitstream
-    length: '0'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    offset: '0'
-    repeat: 'True'
-    type: byte
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [56, 696.0]
     rotation: 0
     state: enabled
 - name: blocks_float_to_char_0
@@ -523,20 +521,20 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '50'
+    attenuation1: '40'
     bandwidth: signal_bandwidth
-    buffer_size: '32768'
+    buffer_size: '3276800'
     comment: ''
     cyclic: 'True'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue
+    frequency: fc
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.3.1
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
@@ -557,12 +555,12 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue_2
+    frequency: fc_2
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.3.2
+    uri: 192.168.2.3
   states:
     bus_sink: false
     bus_source: false
@@ -582,7 +580,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue
+    frequency: fc
     fstop: '0'
     gain1: '''slow_attack'''
     len_tag_key: packet_len
@@ -593,7 +591,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.3.1
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
@@ -1120,10 +1118,10 @@ connections:
 - [analog_quadrature_demod_cf_0, '0', fft_filter_xxx_1_0, '0']
 - [analog_quadrature_demod_cf_0, '0', qtgui_time_sink_x_0_0_0_1_0, '1']
 - [analog_quadrature_demod_cf_0_0, '0', qtgui_time_sink_x_0_0_0_1_0, '0']
+- [analog_random_source_x_0, '0', blocks_char_to_float_0_0_0, '0']
+- [analog_random_source_x_0, '0', blocks_pack_k_bits_bb_0_0_0, '0']
 - [blocks_char_to_float_0_0, '0', qtgui_time_sink_x_0_0, '0']
 - [blocks_char_to_float_0_0_0, '0', qtgui_time_sink_x_0_0, '1']
-- [blocks_file_source_0, '0', blocks_char_to_float_0_0_0, '0']
-- [blocks_file_source_0, '0', blocks_pack_k_bits_bb_0_0_0, '0']
 - [blocks_float_to_char_0, '0', blocks_pack_k_bits_bb_0_0_1, '0']
 - [blocks_pack_k_bits_bb_0_0, '0', blocks_char_to_float_0_0, '0']
 - [blocks_pack_k_bits_bb_0_0, '0', digital_gfsk_mod_0, '0']

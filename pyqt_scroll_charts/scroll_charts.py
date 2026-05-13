@@ -1,11 +1,13 @@
 import sys
 import time
+import itertools
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QScrollArea, QPushButton
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 
 # 折线图单元模块
 try:
@@ -88,6 +90,78 @@ def _normalize_values_list(values: Any) -> list:
     return [_to_python_scalar(values)]
 
 
+def _trim_samples(values: Any, maxlen: Optional[int]) -> Any:
+    if maxlen is None or maxlen <= 0:
+        return values
+
+    if isinstance(values, np.ndarray):
+        if values.ndim == 0:
+            return values
+        flat = values.reshape(-1)
+        if flat.size <= maxlen:
+            return flat
+        return flat[-maxlen:]
+
+    if isinstance(values, list):
+        if len(values) <= maxlen:
+            return values
+        return values[-maxlen:]
+
+    if isinstance(values, tuple):
+        if len(values) <= maxlen:
+            return values
+        return values[-maxlen:]
+
+    if isinstance(values, deque):
+        if len(values) <= maxlen:
+            return values
+        start = len(values) - maxlen
+        return list(itertools.islice(values, start, None))
+
+    if hasattr(values, '__iter__') and not isinstance(values, (str, bytes, bytearray)):
+        tail = deque(values, maxlen=maxlen)
+        return list(tail)
+
+    return values
+
+
+def _take_head(values: Any, count: int) -> list:
+    if count <= 0:
+        return []
+
+    if isinstance(values, np.ndarray):
+        if values.ndim == 0:
+            return [_to_python_scalar(values.item())]
+        return values.reshape(-1)[:count].tolist()
+
+    if isinstance(values, list):
+        return values[:count]
+
+    if isinstance(values, tuple):
+        return list(values[:count])
+
+    if isinstance(values, deque):
+        return list(itertools.islice(values, count))
+
+    if hasattr(values, '__iter__') and not isinstance(values, (str, bytes, bytearray)):
+        return list(itertools.islice(values, count))
+
+    return [_to_python_scalar(values)]
+
+
+def _pretrim_values(values: Any, num_series: int, buffer_size: Optional[int]) -> Any:
+    if num_series <= 1:
+        return _trim_samples(values, buffer_size)
+
+    if isinstance(values, np.ndarray) and values.ndim >= 2 and values.shape[0] == num_series:
+        return [_trim_samples(values[i], buffer_size) for i in range(num_series)]
+
+    if isinstance(values, (list, tuple)) and len(values) == num_series:
+        return [_trim_samples(v, buffer_size) for v in values]
+
+    return _take_head(values, num_series)
+
+
 class ScrollChartManager(QWidget):
     """可复用的滚动图表管理器。
 
@@ -107,7 +181,7 @@ class ScrollChartManager(QWidget):
     """
     addValuesSignal = pyqtSignal(int, object)
     addValueSignal = pyqtSignal(int, int, object)
-    def __init__(self, chart_configs, chart_height=200, parent=None):
+    def __init__(self, chart_configs, chart_height=200, parent=None, time_max_refresh_hz: Optional[float] = 20.0):
         super().__init__(parent)
         # connect signals for thread-safe updates
         self.addValuesSignal.connect(self._handle_add_values)
@@ -117,6 +191,8 @@ class ScrollChartManager(QWidget):
         layout.setSpacing(10)
         self._fft_items = []
         self._time_items = []
+        self._time_refresh_timer = None
+        self._time_max_refresh_hz = time_max_refresh_hz
 
         self._refresh_button = QPushButton("绘制一次", self)
         self._refresh_button.clicked.connect(self.refresh_all)
@@ -131,9 +207,11 @@ class ScrollChartManager(QWidget):
         vlayout.setSpacing(10)
 
         self.items = []
+        self._chart_configs = []
 
         for raw_cfg in chart_configs:
             cfg = _normalize_chart_config(raw_cfg)
+            self._chart_configs.append(cfg)
             num_series = cfg.num_series
             buffer_size = cfg.buffer_size
             y_range = cfg.y_range
@@ -183,10 +261,34 @@ class ScrollChartManager(QWidget):
 
         self._refresh_button.setEnabled(bool(self.items))
 
+        self._start_time_refresh_timer()
+
         vlayout.addStretch()
         scroll.setWidget(container)
         layout.addWidget(scroll)
         self.setLayout(layout)
+
+    def _start_time_refresh_timer(self):
+        if not self._time_items:
+            return
+        if self._time_max_refresh_hz is None:
+            return
+        try:
+            hz = float(self._time_max_refresh_hz)
+        except Exception:
+            return
+        if hz <= 0:
+            return
+        interval_ms = max(1, int(1000.0 / hz))
+        timer = QTimer(self)
+        timer.setInterval(interval_ms)
+        timer.timeout.connect(self._refresh_time_series)
+        timer.start()
+        self._time_refresh_timer = timer
+
+    def _refresh_time_series(self):
+        for item in self._time_items:
+            item.refresh_now()
 
     def _handle_add_values(self, chart_idx, values_list):
         if 0 <= chart_idx < len(self.items):
@@ -199,6 +301,9 @@ class ScrollChartManager(QWidget):
     def add_values(self, chart_idx, values_list):
         """线程安全版本：无论在哪个线程调用，都会在主线程执行更新。"""
         safe_chart_idx = int(_to_python_scalar(chart_idx))
+        if 0 <= safe_chart_idx < len(self._chart_configs):
+            cfg = self._chart_configs[safe_chart_idx]
+            values_list = _pretrim_values(values_list, cfg.num_series, cfg.buffer_size)
         self.addValuesSignal.emit(safe_chart_idx, values_list)
 
     def refresh_all(self):
@@ -226,12 +331,16 @@ class ScrollChartManager(QWidget):
 
 class MainWindow(QWidget):
     """简单演示窗口：展示 ScrollChartManager 并在需要时由上层程序调用数据更新。"""
-    def __init__(self, chart_configs, uniform_height=200):
+    def __init__(self, chart_configs, uniform_height=200, time_max_refresh_hz: Optional[float] = 20.0):
         super().__init__()
         self.setWindowTitle("Scroll Charts Demo")
         layout = QVBoxLayout(self)
 
-        self.manager = ScrollChartManager(chart_configs, chart_height=uniform_height)
+        self.manager = ScrollChartManager(
+            chart_configs,
+            chart_height=uniform_height,
+            time_max_refresh_hz=time_max_refresh_hz,
+        )
         layout.addWidget(self.manager)
 
         self.setLayout(layout)
@@ -243,10 +352,14 @@ class ScrollChartsApp:
     * 非阻塞：只需调用 ``show()``，然后由外部
       的 QApplication 或循环定期执行 ``process_events()``。
     """
-    def __init__(self, chart_configs, uniform_height=200):
+    def __init__(self, chart_configs, uniform_height=200, time_max_refresh_hz: Optional[float] = 20.0):
         # 如果已有 QApplication 实例则复用；否则创建一个。
         self._app = QApplication.instance() or QApplication(sys.argv)
-        self.window = MainWindow(chart_configs, uniform_height=uniform_height)
+        self.window = MainWindow(
+            chart_configs,
+            uniform_height=uniform_height,
+            time_max_refresh_hz=time_max_refresh_hz,
+        )
 
     def add_values(self, chart_idx, values_list):
         """追加数据点给指定 chart。"""

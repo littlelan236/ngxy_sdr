@@ -144,7 +144,7 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
         self.iio_pluto_sink_0.set_bandwidth(1000000)
         self.iio_pluto_sink_0.set_frequency(fc)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 20)
+        self.iio_pluto_sink_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
         self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\rec\\sig1', True, 0, 0)
         self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
