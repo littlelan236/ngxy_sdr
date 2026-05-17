@@ -288,7 +288,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '0'
+    attenuation1: '30'
     bandwidth: '1000000'
     buffer_size: '3276800'
     comment: ''
@@ -296,12 +296,12 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc
+    frequency: fc_blue
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: pluto.local
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false
