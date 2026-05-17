@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # 选项
-VISUALIZE_ON = False
+VISUALIZE_ON = True
 RECORD_SIGNAL_ON = True
 SIGNAL_TX_ON = False
 ONLY_LEVEL_1 = False # 是否主动保持一级干扰
@@ -12,9 +12,11 @@ NUM_SAMPS = 4e4
 THRESHOLD_ERR_COUNT = 5
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.02
-TIMEOUT_ROS_FACTION_QUERY = 1000
+# TIMEOUT_ROS_FACTION_QUERY = 1000
+TIMEOUT_ROS_FACTION_QUERY = 1
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
-TIMEOUT_FACTION_SHARCH = 5
+# TIMEOUT_FACTION_SHARCH = 5
+TIMEOUT_FACTION_SHARCH = 10000
 TIMEOUT_INF_LEVEL = 7
 TIMEOUT_STOP_WORKER_JOIN = 2.0
 TIMEOUT_ENSURE_WORKER_STOPPED = 3.0
@@ -35,7 +37,7 @@ class DeviceConfig:
 # rtlsdr用字符串"rtlsdr"
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
-	device_inf=SERIAL_PLUTO_SDR,
+	device_inf=SERIAL_PLUTO_NANO_1,
 	device_backup=SERIAL_PLUTO_NANO_0,
 	device_sig_addr=None,
 	device_inf_addr=None,
@@ -1028,9 +1030,10 @@ def work(
 				if stop_event is not None and stop_event.is_set():
 					rx_ctrl.close() if device != "rtlsdr" else None
 					break
-				samples = rx_ctrl.rx().astype(np.complex64)
+				samples = rx_ctrl.rx()
+				samples64 = samples.astype(np.complex64)
 				if record_file is not None and samples is not None:
-					samples.tofile(record_file)
+					samples64.tofile(record_file)
 				if samples is None:
 					time.sleep(0.01)
 					continue
