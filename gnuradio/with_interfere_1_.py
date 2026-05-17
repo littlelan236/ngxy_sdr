@@ -30,11 +30,11 @@ from gnuradio import iio
 from gnuradio import zeromq
 import sip
 import threading
-import with_interfere_2_epy_block_0_0 as epy_block_0_0  # embedded python block
+import with_interfere_1__epy_block_0_0 as epy_block_0_0  # embedded python block
 
 
 
-class with_interfere_2(gr.top_block, Qt.QWidget):
+class with_interfere_1_(gr.top_block, Qt.QWidget):
 
     def __init__(self):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
@@ -57,7 +57,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "with_interfere_2")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "with_interfere_1_")
 
         try:
             geometry = self.settings.value("geometry")
@@ -71,7 +71,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 1000000
-        self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 260000, 1000)
+        self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 270000, 10000)
         self.taps_lpf = taps_lpf = firdes.low_pass(1.0, samp_rate, 19230, 2000)
         self.signal_bandwidth = signal_bandwidth = 240600
         self.sensitivity_signal = sensitivity_signal = 1.5756
@@ -295,7 +295,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
             None # parent
         )
         self.qtgui_freq_sink_x_0.set_update_time(0.10)
-        self.qtgui_freq_sink_x_0.set_y_axis((-90), (-10))
+        self.qtgui_freq_sink_x_0.set_y_axis((-100), (-30))
         self.qtgui_freq_sink_x_0.set_y_label('Relative Gain', 'dB')
         self.qtgui_freq_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, 0.0, 0, "")
         self.qtgui_freq_sink_x_0.enable_autoscale(False)
@@ -327,7 +327,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.1' if '192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
@@ -337,44 +337,18 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0_0_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768, True)
-        self.iio_pluto_sink_0_0_0.set_len_tag_key('')
-        self.iio_pluto_sink_0_0_0.set_bandwidth(samp_rate)
-        self.iio_pluto_sink_0_0_0.set_frequency(fc_2)
-        self.iio_pluto_sink_0_0_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0_0_0.set_attenuation(0, 0)
-        self.iio_pluto_sink_0_0_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 3276800, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
         self.iio_pluto_sink_0.set_frequency(fc)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 50)
+        self.iio_pluto_sink_0.set_attenuation(0, 70)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
         self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
         self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
         self.fft_filter_xxx_1_0 = filter.fft_filter_fff(1, taps_lpf, 1)
         self.fft_filter_xxx_1_0.declare_sample_delay(0)
         self.epy_block_0_0 = epy_block_0_0.blk()
-        self.digital_symbol_sync_xx_0 = digital.symbol_sync_ff(
-            digital.TED_MUELLER_AND_MULLER,
-            52,
-            0.045,
-            1.0,
-            1.0,
-            1.5,
-            1,
-            digital.constellation_bpsk().base(),
-            digital.IR_MMSE_8TAP,
-            128,
-            [])
-        self.digital_gfsk_mod_0_0 = digital.gfsk_mod(
-            samples_per_symbol=52,
-            sensitivity=sensitivity_inf_2,
-            bt=0.35,
-            verbose=False,
-            log=False,
-            do_unpack=True)
         self.digital_gfsk_mod_0 = digital.gfsk_mod(
             samples_per_symbol=52,
             sensitivity=sensitivity_signal,
@@ -382,8 +356,8 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
             verbose=False,
             log=False,
             do_unpack=True)
+        self.digital_clock_recovery_mm_xx_0 = digital.clock_recovery_mm_ff(52, 4.0, 0.5, 0.175, 0.005)
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
-        self.blocks_pack_k_bits_bb_0_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_pack_k_bits_bb_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
         self.blocks_char_to_float_0_0_0 = blocks.char_to_float(1, 1)
@@ -400,21 +374,18 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 1))
         self.connect((self.analog_quadrature_demod_cf_0_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 0))
         self.connect((self.analog_random_source_x_0, 0), (self.blocks_char_to_float_0_0_0, 0))
-        self.connect((self.analog_random_source_x_0, 0), (self.blocks_pack_k_bits_bb_0_0_0, 0))
         self.connect((self.blocks_char_to_float_0_0, 0), (self.qtgui_time_sink_x_0_0, 0))
         self.connect((self.blocks_char_to_float_0_0_0, 0), (self.qtgui_time_sink_x_0_0, 1))
         self.connect((self.blocks_float_to_char_0, 0), (self.blocks_pack_k_bits_bb_0_0_1, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0, 0), (self.blocks_char_to_float_0_0, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0, 0), (self.digital_gfsk_mod_0, 0))
-        self.connect((self.blocks_pack_k_bits_bb_0_0_0, 0), (self.digital_gfsk_mod_0_0, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0_1, 0), (self.zeromq_pub_sink_0_0, 0))
+        self.connect((self.digital_clock_recovery_mm_xx_0, 0), (self.epy_block_0_0, 0))
+        self.connect((self.digital_clock_recovery_mm_xx_0, 0), (self.qtgui_time_sink_x_0, 0))
         self.connect((self.digital_gfsk_mod_0, 0), (self.iio_pluto_sink_0, 0))
-        self.connect((self.digital_gfsk_mod_0_0, 0), (self.iio_pluto_sink_0_0_0, 0))
-        self.connect((self.digital_symbol_sync_xx_0, 0), (self.epy_block_0_0, 0))
-        self.connect((self.digital_symbol_sync_xx_0, 0), (self.qtgui_time_sink_x_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.blocks_float_to_char_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.qtgui_time_sink_x_0, 1))
-        self.connect((self.fft_filter_xxx_1_0, 0), (self.digital_symbol_sync_xx_0, 0))
+        self.connect((self.fft_filter_xxx_1_0, 0), (self.digital_clock_recovery_mm_xx_0, 0))
         self.connect((self.fft_filter_xxx_1_0, 0), (self.qtgui_time_sink_x_0_0_0_0, 0))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.analog_quadrature_demod_cf_0, 0))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.qtgui_freq_sink_x_0, 1))
@@ -425,7 +396,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "with_interfere_2")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "with_interfere_1_")
         self.settings.setValue("geometry", self.saveGeometry())
         self.stop()
         self.wait()
@@ -438,10 +409,8 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
-        self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 260000, 1000))
+        self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
         self.iio_pluto_sink_0.set_samplerate(self.samp_rate)
-        self.iio_pluto_sink_0_0_0.set_bandwidth(self.samp_rate)
-        self.iio_pluto_sink_0_0_0.set_samplerate(self.samp_rate)
         self.iio_pluto_source_0.set_samplerate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
@@ -529,7 +498,6 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
     def set_fc_2(self, fc_2):
         self.fc_2 = fc_2
-        self.iio_pluto_sink_0_0_0.set_frequency(self.fc_2)
 
     def get_fc_1(self):
         return self.fc_1
@@ -548,7 +516,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
 
 
-def main(top_block_cls=with_interfere_2, options=None):
+def main(top_block_cls=with_interfere_1_, options=None):
 
     qapp = Qt.QApplication(sys.argv)
 

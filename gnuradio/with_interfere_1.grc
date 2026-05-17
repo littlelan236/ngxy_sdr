@@ -344,22 +344,6 @@ blocks:
     coordinate: [312, 304.0]
     rotation: 0
     state: enabled
-- name: blocks_pack_k_bits_bb_0_0_0
-  id: blocks_pack_k_bits_bb
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    k: '8'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [328, 896.0]
-    rotation: 0
-    state: enabled
 - name: blocks_pack_k_bits_bb_0_0_1
   id: blocks_pack_k_bits_bb
   parameters:
@@ -397,27 +381,6 @@ blocks:
     coordinate: [480, 284.0]
     rotation: 0
     state: enabled
-- name: digital_gfsk_mod_0_0
-  id: digital_gfsk_mod
-  parameters:
-    affinity: ''
-    alias: ''
-    bt: '0.35'
-    comment: ''
-    do_unpack: 'True'
-    log: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    samples_per_symbol: '52'
-    sensitivity: sensitivity_inf_1
-    verbose: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [504, 876.0]
-    rotation: 0
-    state: enabled
 - name: digital_symbol_sync_xx_0
   id: digital_symbol_sync_xx
   parameters:
@@ -442,7 +405,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [2088, 236.0]
+    coordinate: [2072, 144.0]
     rotation: 0
     state: enabled
 - name: epy_block_0_0
@@ -521,7 +484,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '47'
+    attenuation1: '30'
     bandwidth: signal_bandwidth
     buffer_size: '3276800'
     comment: ''
@@ -534,38 +497,12 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.5
+    uri: pluto.local
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
     coordinate: [664, 292.0]
-    rotation: 0
-    state: enabled
-- name: iio_pluto_sink_0_0_0
-  id: iio_pluto_sink
-  parameters:
-    affinity: ''
-    alias: ''
-    attenuation1: '60'
-    bandwidth: signal_bandwidth
-    buffer_size: '32768'
-    comment: ''
-    cyclic: 'True'
-    filter: ''
-    filter_source: '''Auto'''
-    fpass: '0'
-    frequency: fc_blue_1
-    fstop: '0'
-    len_tag_key: ''
-    samplerate: samp_rate
-    type: fc32
-    uri: 192.168.2.3
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [736, 828.0]
     rotation: 0
     state: enabled
 - name: iio_pluto_source_0
@@ -591,7 +528,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.5
+    uri: pluto.local
   states:
     bus_sink: false
     bus_source: false
@@ -1119,16 +1056,13 @@ connections:
 - [analog_quadrature_demod_cf_0, '0', qtgui_time_sink_x_0_0_0_1_0, '1']
 - [analog_quadrature_demod_cf_0_0, '0', qtgui_time_sink_x_0_0_0_1_0, '0']
 - [analog_random_source_x_0, '0', blocks_char_to_float_0_0_0, '0']
-- [analog_random_source_x_0, '0', blocks_pack_k_bits_bb_0_0_0, '0']
 - [blocks_char_to_float_0_0, '0', qtgui_time_sink_x_0_0, '0']
 - [blocks_char_to_float_0_0_0, '0', qtgui_time_sink_x_0_0, '1']
 - [blocks_float_to_char_0, '0', blocks_pack_k_bits_bb_0_0_1, '0']
 - [blocks_pack_k_bits_bb_0_0, '0', blocks_char_to_float_0_0, '0']
 - [blocks_pack_k_bits_bb_0_0, '0', digital_gfsk_mod_0, '0']
-- [blocks_pack_k_bits_bb_0_0_0, '0', digital_gfsk_mod_0_0, '0']
 - [blocks_pack_k_bits_bb_0_0_1, '0', zeromq_pub_sink_0_0, '0']
 - [digital_gfsk_mod_0, '0', iio_pluto_sink_0, '0']
-- [digital_gfsk_mod_0_0, '0', iio_pluto_sink_0_0_0, '0']
 - [digital_symbol_sync_xx_0, '0', epy_block_0_0, '0']
 - [digital_symbol_sync_xx_0, '0', qtgui_time_sink_x_0, '0']
 - [epy_block_0_0, '0', blocks_float_to_char_0, '0']

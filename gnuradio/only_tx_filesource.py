@@ -139,12 +139,12 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('pluto.local' if 'pluto.local' else iio.get_pluto_uri(), [True, True], 3276800, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(1000000)
-        self.iio_pluto_sink_0.set_frequency(fc)
+        self.iio_pluto_sink_0.set_frequency(fc_blue)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 0)
+        self.iio_pluto_sink_0.set_attenuation(0, 30)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
         self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\rec\\sig1', True, 0, 0)
         self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
@@ -258,6 +258,7 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
     def set_fc_blue(self, fc_blue):
         self.fc_blue = fc_blue
+        self.iio_pluto_sink_0.set_frequency(self.fc_blue)
 
     def get_fc_3(self):
         return self.fc_3
@@ -282,7 +283,6 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
     def set_fc(self, fc):
         self.fc = fc
-        self.iio_pluto_sink_0.set_frequency(self.fc)
 
 
 

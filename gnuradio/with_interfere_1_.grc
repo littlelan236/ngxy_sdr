@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: qt_gui
     hier_block_src_path: '.:'
-    id: with_interfere_2
+    id: with_interfere_1_
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -217,12 +217,12 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: firdes.low_pass(1.0, samp_rate, 260000, 1000)
+    value: firdes.low_pass(1.0, samp_rate, 270000, 10000)
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1520, 20.0]
+    coordinate: [1520, 16.0]
     rotation: 0
     state: enabled
 - name: analog_quadrature_demod_cf_0
@@ -274,7 +274,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [96, 732.0]
+    coordinate: [88, 720.0]
     rotation: 0
     state: enabled
 - name: blocks_char_to_float_0_0
@@ -344,22 +344,6 @@ blocks:
     coordinate: [312, 304.0]
     rotation: 0
     state: enabled
-- name: blocks_pack_k_bits_bb_0_0_0
-  id: blocks_pack_k_bits_bb
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    k: '8'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [328, 896.0]
-    rotation: 0
-    state: enabled
 - name: blocks_pack_k_bits_bb_0_0_1
   id: blocks_pack_k_bits_bb
   parameters:
@@ -374,6 +358,27 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [2688, 424.0]
+    rotation: 0
+    state: enabled
+- name: digital_clock_recovery_mm_xx_0
+  id: digital_clock_recovery_mm_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    gain_mu: '0.175'
+    gain_omega: '4.0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    mu: '0.5'
+    omega: '52'
+    omega_relative_limit: '0.005'
+    type: float
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [2136, 272.0]
     rotation: 0
     state: enabled
 - name: digital_gfsk_mod_0
@@ -395,54 +400,6 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [480, 288.0]
-    rotation: 0
-    state: enabled
-- name: digital_gfsk_mod_0_0
-  id: digital_gfsk_mod
-  parameters:
-    affinity: ''
-    alias: ''
-    bt: '0.35'
-    comment: ''
-    do_unpack: 'True'
-    log: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    samples_per_symbol: '52'
-    sensitivity: sensitivity_inf_2
-    verbose: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [504, 880.0]
-    rotation: 0
-    state: enabled
-- name: digital_symbol_sync_xx_0
-  id: digital_symbol_sync_xx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    constellation: digital.constellation_bpsk().base()
-    damping: '1.0'
-    loop_bw: '0.045'
-    max_dev: '1.5'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    nfilters: '128'
-    osps: '1'
-    pfb_mf_taps: '[]'
-    resamp_type: digital.IR_MMSE_8TAP
-    sps: '52'
-    ted_gain: '1.0'
-    ted_type: digital.TED_MUELLER_AND_MULLER
-    type: ff
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [2088, 240.0]
     rotation: 0
     state: enabled
 - name: epy_block_0_0
@@ -513,7 +470,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1232, 320.0]
+    coordinate: [1208, 320.0]
     rotation: 0
     state: enabled
 - name: iio_pluto_sink_0
@@ -521,7 +478,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '50'
+    attenuation1: '70'
     bandwidth: signal_bandwidth
     buffer_size: '3276800'
     comment: ''
@@ -534,38 +491,12 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.3
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [664, 288.0]
-    rotation: 0
-    state: enabled
-- name: iio_pluto_sink_0_0_0
-  id: iio_pluto_sink
-  parameters:
-    affinity: ''
-    alias: ''
-    attenuation1: '0'
-    bandwidth: samp_rate
-    buffer_size: '32768'
-    comment: ''
-    cyclic: 'True'
-    filter: ''
-    filter_source: '''Auto'''
-    fpass: '0'
-    frequency: fc_2
-    fstop: '0'
-    len_tag_key: ''
-    samplerate: samp_rate
-    type: fc32
     uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [736, 832.0]
+    coordinate: [664, 260.0]
     rotation: 0
     state: enabled
 - name: iio_pluto_source_0
@@ -591,12 +522,12 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.1
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [880, 272.0]
+    coordinate: [880, 280.0]
     rotation: 0
     state: enabled
 - name: qtgui_freq_sink_x_0
@@ -671,8 +602,8 @@ blocks:
     width8: '1'
     width9: '1'
     wintype: window.WIN_BLACKMAN_hARRIS
-    ymax: '-10'
-    ymin: '-90'
+    ymax: '-30'
+    ymin: '-100'
   states:
     bus_sink: false
     bus_source: false
@@ -1119,21 +1050,18 @@ connections:
 - [analog_quadrature_demod_cf_0, '0', qtgui_time_sink_x_0_0_0_1_0, '1']
 - [analog_quadrature_demod_cf_0_0, '0', qtgui_time_sink_x_0_0_0_1_0, '0']
 - [analog_random_source_x_0, '0', blocks_char_to_float_0_0_0, '0']
-- [analog_random_source_x_0, '0', blocks_pack_k_bits_bb_0_0_0, '0']
 - [blocks_char_to_float_0_0, '0', qtgui_time_sink_x_0_0, '0']
 - [blocks_char_to_float_0_0_0, '0', qtgui_time_sink_x_0_0, '1']
 - [blocks_float_to_char_0, '0', blocks_pack_k_bits_bb_0_0_1, '0']
 - [blocks_pack_k_bits_bb_0_0, '0', blocks_char_to_float_0_0, '0']
 - [blocks_pack_k_bits_bb_0_0, '0', digital_gfsk_mod_0, '0']
-- [blocks_pack_k_bits_bb_0_0_0, '0', digital_gfsk_mod_0_0, '0']
 - [blocks_pack_k_bits_bb_0_0_1, '0', zeromq_pub_sink_0_0, '0']
+- [digital_clock_recovery_mm_xx_0, '0', epy_block_0_0, '0']
+- [digital_clock_recovery_mm_xx_0, '0', qtgui_time_sink_x_0, '0']
 - [digital_gfsk_mod_0, '0', iio_pluto_sink_0, '0']
-- [digital_gfsk_mod_0_0, '0', iio_pluto_sink_0_0_0, '0']
-- [digital_symbol_sync_xx_0, '0', epy_block_0_0, '0']
-- [digital_symbol_sync_xx_0, '0', qtgui_time_sink_x_0, '0']
 - [epy_block_0_0, '0', blocks_float_to_char_0, '0']
 - [epy_block_0_0, '0', qtgui_time_sink_x_0, '1']
-- [fft_filter_xxx_1_0, '0', digital_symbol_sync_xx_0, '0']
+- [fft_filter_xxx_1_0, '0', digital_clock_recovery_mm_xx_0, '0']
 - [fft_filter_xxx_1_0, '0', qtgui_time_sink_x_0_0_0_0, '0']
 - [fft_filter_xxx_1_0_0, '0', analog_quadrature_demod_cf_0, '0']
 - [fft_filter_xxx_1_0_0, '0', qtgui_freq_sink_x_0, '1']
