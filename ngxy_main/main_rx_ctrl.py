@@ -37,7 +37,7 @@ class DeviceConfig:
 # rtlsdr用字符串"rtlsdr"
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
-	device_inf=SERIAL_PLUTO_SDR,
+	device_inf=SERIAL_PLUTO_NANO_1,
 	device_backup=SERIAL_PLUTO_NANO_0,
 	device_sig_addr=None,
 	device_inf_addr=None,

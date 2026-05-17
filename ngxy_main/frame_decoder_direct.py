@@ -45,7 +45,7 @@ class frame_decoder_direct:
         crc16_enabled: bool = True,
         on_frame_decoded=None,
         payload_tail_limit: int = 50,
-    ):
+    ):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
         if type not in ("signal", "jamming"):
             raise ValueError(f"Unsupported type: {type}")
 
