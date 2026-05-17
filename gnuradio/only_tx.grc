@@ -259,7 +259,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [480, 288.0]
+    coordinate: [488, 284.0]
     rotation: 0
     state: enabled
 - name: iio_pluto_sink_0
@@ -269,23 +269,23 @@ blocks:
     alias: ''
     attenuation1: '0'
     bandwidth: signal_bandwidth
-    buffer_size: '32768'
+    buffer_size: '3276800'
     comment: ''
     cyclic: 'True'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_1
+    frequency: fc
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.1
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [744, 244.0]
+    coordinate: [744, 276.0]
     rotation: 0
     state: enabled
 - name: qtgui_time_sink_x_0
@@ -382,13 +382,13 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [744, 140.0]
+    coordinate: [752, 132.0]
     rotation: 0
     state: enabled
 - name: zeromq_sub_source_0
   id: zeromq_sub_source
   parameters:
-    address: tcp://127.0.0.1:2235
+    address: tcp://127.0.0.1:2234
     affinity: ''
     alias: ''
     bind: 'False'

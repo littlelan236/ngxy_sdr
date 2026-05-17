@@ -19,7 +19,7 @@ LEN_HEADER = LEN_SOF + LEN_DATA_LENGTH + LEN_SEQ + 1
 ACCESS_JAMMING_NPARRAY_BITS = np.unpackbits(np.frombuffer(ACCESS_CODE_JAMMING.to_bytes(8, ENDIAN_OTA), dtype=np.uint8))
 ACCESS_SIGNAL_NPARRAY_BITS = np.unpackbits(np.frombuffer(ACCESS_CODE_SIGNAL.to_bytes(8, ENDIAN_OTA), dtype=np.uint8))
 
-class frame_decoder:
+class frame_decoder_zmq:
     def __init__(
         self,
         type = "signal", # signal或jamming 解析信息波还是干扰波
@@ -27,9 +27,7 @@ class frame_decoder:
         len_history_payload = 44, # 串口协议帧最长为45bytes 每轮保留上一轮最后45bytes
         crc8_enabled = True, # 是否在串口帧帧头识别时启用CRC8校验
         crc16_enabled = True, # 是否在串口帧解析时启用CRC16校验
-        update_interval = 0.001, # 更新buffer_bits并进行后续处理的频率
-        buffer_payload_expire_time = 0.2, # 连续多长时间没有识别到有效空口帧 则清空buffer_payload 防止过时的数据被反复输出
-        bits_source = "zmq", # zmq: 内部从ZMQ读取bits; direct: 由外部主动push_bits
+        update_interval = 0.01, # 更新buffer_bits并进行后续处理的频率
         zmq_address = "tcp://127.0.0.1:2236",
         zmq_data_type = np.uint8,
         zmq_buffer_size = 500, # 理论上0.25秒的数据会占满500bytes
@@ -47,50 +45,19 @@ class frame_decoder:
         self._update_interval = update_interval
         self._len_history_bits = len_history_bits
         self._len_history_payload = len_history_payload
-        self._buffer_payload_expire_time = buffer_payload_expire_time
-        self._last_ota_frame_synced_time = time.time() # 记录上一次识别到空口帧的时间
         self._on_frame_decoded = on_frame_decoded # 成功解析帧后的回调函数
-        self._buffer_payload_last_size = 0 # 上一轮_buffer_payload的大小 用于判断是否有新数据被添加到_buffer_payload中
-        self._bits_source = bits_source
 
         self._zmq_server = None
         self._worker_thread = None
 
-        if self._bits_source == "zmq":
-            self._zmq_server = zmqServerRx(
-                zmq_address,
-                zmq_data_type,
-                zmq_buffer_size,
-                zmq_read_data_interval,
-            )
-            self._worker_thread = threading.Thread(target=self._worker, daemon=True)
-            self._worker_thread.start()
-        elif self._bits_source != "direct":
-            raise ValueError(f"Unsupported bits_source: {self._bits_source}")
-
-    # def _debug(self, bits):
-    #     """测试用"""
-    #     print("----------start------------")
-    #     self.buffer_bits = bits
-    #     # 将bits缓存中的信息 读取串口协议帧 存放到payload缓存中
-    #     self._frame_sync_ota()
-    #     print("----------buffer_payload------------")
-    #     print_hex_by_byte(self.buffer_payload)
-    #     # 将payload缓存中的信息进行串口信息帧识别与解析
-    #     frames_serial = self._frame_sync_serial()
-    #     print("----------frames_serial------------")
-    #     print_hex_by_byte(frames_serial)
-    #     if frames_serial is None:
-    #         return
-    #     # 解析串口帧信息
-    #     data_dict_list = []
-    #     for f in frames_serial:
-    #         d = self._decode_frame_serial(f)
-    #         if d is None:
-    #             return
-    #         data_dict_list.append(d)
-    #     print(data_dict_list)
-    #     print("test end")
+        self._zmq_server = zmqServerRx(
+            zmq_address,
+            zmq_data_type,
+            zmq_buffer_size,
+            zmq_read_data_interval,
+        )
+        self._worker_thread = threading.Thread(target=self._worker, daemon=True)
+        self._worker_thread.start()
 
     def set_crc16_enabled(self, enable):
         """开关crc16校验"""
@@ -186,12 +153,7 @@ class frame_decoder:
         将payload buffer中上一轮的数据除最后保留的部分外删除
         读取self.buffer_bits 使用np.correlate识别空口帧帧头 读取空口帧payload
         并转换为bytes结构 添加到payload_buffer中
-        payload_buffer有超时清空机制 防止一直识别不到空口帧导致payload_buffer中的旧数据被反复读取
         """
-        # 删除buffer中除最后一段外的其他bytes
-        # if len(self._buffer_payload) > self._len_history_payload:
-        #     self._buffer_payload = self._buffer_payload[-self._len_history_payload:]
-
         # 缓冲区为空时直接返回
         if len(self._buffer_bits) == 0:
             return
@@ -206,23 +168,30 @@ class frame_decoder:
         # 经过计算 互相关值为32处为空口帧的帧头（两种accesscode均为32）
         idx_frame = np.argwhere(corr == access_corr).flatten()
         logging.log(logging.DEBUG, f"[frame_decoder] ota frame sync {len(idx_frame)} {idx_frame}")
+
+        bits = self._buffer_bits
+        cursor = 0
         # 读取空口帧payload 转为bytes 并放在buffer_payload中
-        synced_flag = False # 是否识别到有效帧
         for idx in idx_frame:
-            p = self._read_bytes_from_bits(self._buffer_bits, idx + LEN_ACCESS * 8 + LEN_OTA_LENGTH * 2 * 8, LEN_OTA_PAYLOAD)
+            if idx < cursor:
+                continue
+
+            payload_start = idx + LEN_ACCESS * 8 + LEN_OTA_LENGTH * 2 * 8
+            payload_end = payload_start + LEN_OTA_PAYLOAD * 8
+            if payload_end > len(bits):
+                cursor = idx
+                break
+
+            p = self._read_bytes_from_bits(bits, payload_start, LEN_OTA_PAYLOAD)
             if len(p) != 0:
-                synced_flag = True
                 logging.log(logging.INFO, f"[frame decoder] synced_flag True")
                 self._buffer_payload = self._buffer_payload + p
+            cursor = payload_end
 
-        if synced_flag:
-            # 更新上次有效识别时间
-            self._last_ota_frame_synced_time = time.time()
-
-        # 若长时间没有读到有效空口帧，则丢弃所有buffer_payload中的数据 （已经过时了）
-        if time.time() - self._last_ota_frame_synced_time > self._buffer_payload_expire_time:
-            self._buffer_payload = bytes()
-            logging.log(logging.DEBUG, f"[frame decoder] buffer_payload expired")
+        if cursor > 0:
+            self._buffer_bits = bits[cursor:]
+        if len(self._buffer_bits) > self._len_history_bits:
+            self._buffer_bits = self._buffer_bits[-self._len_history_bits:]
 
         logging.log(logging.DEBUG, f"[frame decoder] frame sync ota  current buffer_payload size {len(self._buffer_payload)}")
     
@@ -245,7 +214,6 @@ class frame_decoder:
                 next_sof_idx = payload.find(bytes([SOF]), sof_idx + 1)
                 if next_sof_idx < 0:
                     self._buffer_payload = payload[sof_idx:]
-                    self._buffer_payload_last_size = len(self._buffer_payload)
                     return frames_serial
                 cursor = sof_idx + 1
                 continue
@@ -265,7 +233,6 @@ class frame_decoder:
                     cursor = sof_idx + 1
                     continue
                 self._buffer_payload = payload[sof_idx:]
-                self._buffer_payload_last_size = len(self._buffer_payload)
                 return frames_serial
 
             frame = payload[sof_idx:sof_idx + frame_length]
@@ -279,7 +246,6 @@ class frame_decoder:
 
         # 扫描完成后只保留尚未消费的尾部，避免重复解析
         self._buffer_payload = payload[cursor:]
-        self._buffer_payload_last_size = len(self._buffer_payload)
         return frames_serial
     
     def _decode_frame_serial(self, frame_serial) -> dict | None:
@@ -365,5 +331,5 @@ if __name__ == "__main__": # 测试代码
     print(bs)
     print("----------------")
 
-    decoder = frame_decoder(type="signal")
+    decoder = frame_decoder_zmq(type="signal")
     decoder._debug(bs)

@@ -81,7 +81,6 @@ class zmqServerRx:
     def read_data(self) -> np.ndarray | BaseStatus | None:
         """
         将buffer中的数据全部取出 并从buffer中移除这些数据
-        若数据类型为 dataclass 则自动尝试解析buffer中的JSON字符串并转换为对应的 dataclass 实例
         """
         with self._lock:
             if len(self._buffer) == 0:
@@ -89,21 +88,6 @@ class zmqServerRx:
             data_bytes = bytes(self._buffer)
             self._buffer.clear()
 
-        if isinstance(self._data_type, str):
-            if self._data_type == "dataclass":
-                # 尝试作为 JSON 解析并转换为 dataclass
-                try:
-                    data_str = data_bytes.decode('utf-8')
-                    data_dict = json.loads(data_str)
-                    result = dict_to_dataclass(data_dict)
-                    if result is not None:
-                        logging.log(logging.DEBUG, f"[{time.time()}][zmq_server_rx] parsed dataclass: {type(result).__name__}")
-                        return result
-                except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                    pass
-                # 如果解析失败，返回 None 或错误，这里选择返回 None
-                return None
-        else:
             # 返回 ndarray
             data_array = np.frombuffer(data_bytes, dtype=self._data_type)
             logging.log(logging.DEBUG, f"[{time.time()}][zmq_server_rx] read from zmq server buffer {len(data_array)}")

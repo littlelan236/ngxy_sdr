@@ -193,7 +193,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '240600'
+    value: '270000'
   states:
     bus_sink: false
     bus_source: false
@@ -534,7 +534,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.3
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
@@ -560,7 +560,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.5
+    uri: 192.168.2.3
   states:
     bus_sink: false
     bus_source: false
@@ -629,7 +629,7 @@ blocks:
     color8: '"dark red"'
     color9: '"dark green"'
     comment: ''
-    ctrlpanel: 'False'
+    ctrlpanel: 'True'
     fc: '0'
     fftsize: '1024'
     freqhalf: 'True'
@@ -672,7 +672,7 @@ blocks:
     width9: '1'
     wintype: window.WIN_BLACKMAN_hARRIS
     ymax: '-10'
-    ymin: '-90'
+    ymin: '-100'
   states:
     bus_sink: false
     bus_source: false
@@ -1093,7 +1093,7 @@ blocks:
 - name: zeromq_sub_source_0
   id: zeromq_sub_source
   parameters:
-    address: tcp://127.0.0.1:2235
+    address: tcp://127.0.0.1:2234
     affinity: ''
     alias: ''
     bind: 'False'

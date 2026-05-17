@@ -109,6 +109,24 @@ blocks:
     coordinate: [576, 288.0]
     rotation: 0
     state: enabled
+- name: blocks_file_sink_0
+  id: blocks_file_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    append: 'False'
+    comment: ''
+    file: '666'
+    type: complex
+    unbuffered: 'False'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [344, 412.0]
+    rotation: 0
+    state: enabled
 - name: blocks_float_to_char_0
   id: blocks_float_to_char
   parameters:
@@ -302,6 +320,7 @@ connections:
 - [epy_block_0_0, '0', blocks_float_to_char_0, '0']
 - [fft_filter_xxx_1_0, '0', digital_symbol_sync_xx_0, '0']
 - [fft_filter_xxx_1_0_0, '0', analog_quadrature_demod_cf_0, '0']
+- [iio_pluto_source_0, '0', blocks_file_sink_0, '0']
 - [iio_pluto_source_0, '0', fft_filter_xxx_1_0_0, '0']
 
 metadata:

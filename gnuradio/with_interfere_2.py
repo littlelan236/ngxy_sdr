@@ -73,7 +73,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.samp_rate = samp_rate = 1000000
         self.taps_lpf_pre = taps_lpf_pre = firdes.low_pass(1.0, samp_rate, 260000, 1000)
         self.taps_lpf = taps_lpf = firdes.low_pass(1.0, samp_rate, 19230, 2000)
-        self.signal_bandwidth = signal_bandwidth = 240600
+        self.signal_bandwidth = signal_bandwidth = 270000
         self.sensitivity_signal = sensitivity_signal = 1.5756
         self.sensitivity_inf_3 = sensitivity_inf_3 = 0.6466
         self.sensitivity_inf_2 = sensitivity_inf_2 = 2.5809
@@ -91,7 +91,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         # Blocks
         ##################################################
 
-        self.zeromq_sub_source_0 = zeromq.sub_source(gr.sizeof_char, 1, 'tcp://127.0.0.1:2235', 100, False, (-1), '', False)
+        self.zeromq_sub_source_0 = zeromq.sub_source(gr.sizeof_char, 1, 'tcp://127.0.0.1:2234', 100, False, (-1), '', False)
         self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2236', 100, False, (-1), '', True, True)
         self.qtgui_time_sink_x_0_0_0_1_0 = qtgui.time_sink_f(
             1024, #size
@@ -295,14 +295,14 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
             None # parent
         )
         self.qtgui_freq_sink_x_0.set_update_time(0.10)
-        self.qtgui_freq_sink_x_0.set_y_axis((-90), (-10))
+        self.qtgui_freq_sink_x_0.set_y_axis((-100), (-10))
         self.qtgui_freq_sink_x_0.set_y_label('Relative Gain', 'dB')
         self.qtgui_freq_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, 0.0, 0, "")
         self.qtgui_freq_sink_x_0.enable_autoscale(False)
         self.qtgui_freq_sink_x_0.enable_grid(False)
         self.qtgui_freq_sink_x_0.set_fft_average(1.0)
         self.qtgui_freq_sink_x_0.enable_axis_labels(True)
-        self.qtgui_freq_sink_x_0.enable_control_panel(False)
+        self.qtgui_freq_sink_x_0.enable_control_panel(True)
         self.qtgui_freq_sink_x_0.set_fft_window_normalized(False)
 
 
@@ -337,14 +337,14 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0_0_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768, True)
+        self.iio_pluto_sink_0_0_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 32768, True)
         self.iio_pluto_sink_0_0_0.set_len_tag_key('')
         self.iio_pluto_sink_0_0_0.set_bandwidth(samp_rate)
         self.iio_pluto_sink_0_0_0.set_frequency(fc_2)
         self.iio_pluto_sink_0_0_0.set_samplerate(samp_rate)
         self.iio_pluto_sink_0_0_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0_0_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 3276800, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
         self.iio_pluto_sink_0.set_frequency(fc)

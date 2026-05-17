@@ -79,6 +79,8 @@ class region_games_without_gui(gr.top_block):
             [])
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
+        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_gr_complex*1, '666', False)
+        self.blocks_file_sink_0.set_unbuffered(False)
         self.analog_quadrature_demod_cf_0 = analog.quadrature_demod_cf((1 / 1.5))
 
 
@@ -92,6 +94,7 @@ class region_games_without_gui(gr.top_block):
         self.connect((self.epy_block_0_0, 0), (self.blocks_float_to_char_0, 0))
         self.connect((self.fft_filter_xxx_1_0, 0), (self.digital_symbol_sync_xx_0, 0))
         self.connect((self.fft_filter_xxx_1_0_0, 0), (self.analog_quadrature_demod_cf_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.blocks_file_sink_0, 0))
         self.connect((self.iio_pluto_source_0, 0), (self.fft_filter_xxx_1_0_0, 0))
 
 

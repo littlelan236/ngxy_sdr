@@ -492,12 +492,12 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue
+    frequency: fc
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: pluto.local
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
@@ -517,7 +517,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue
+    frequency: fc
     fstop: '0'
     gain1: '''slow_attack'''
     len_tag_key: packet_len
@@ -528,7 +528,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: pluto.local
+    uri: 192.168.2.5
   states:
     bus_sink: false
     bus_source: false
