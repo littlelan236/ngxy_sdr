@@ -1,4 +1,17 @@
 from typing import Iterable
+import logging
+from pathlib import Path
+
+def _log(loglevel, strin):
+    """进行一次logging.log与一次print"""
+    logging.log(loglevel, strin)
+    print(strin)
+
+def _makesure_path_exist(filename):
+    file_path = Path(filename)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.touch(exist_ok=True)
+    return file_path
 
 def _reverse_string(s): 
     return s[::-1]

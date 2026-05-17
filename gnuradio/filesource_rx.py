@@ -347,7 +347,7 @@ class filesource_rx(gr.top_block, Qt.QWidget):
             [])
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\e.iq', True, 0, 0)
+        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\1.iq', True, 0, 0)
         self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
         self.analog_quadrature_demod_cf_0_0 = analog.quadrature_demod_cf((1 / 1.5))
         self.analog_quadrature_demod_cf_0 = analog.quadrature_demod_cf((1 / 1.5))

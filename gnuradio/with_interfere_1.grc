@@ -484,7 +484,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '30'
+    attenuation1: '0'
     bandwidth: signal_bandwidth
     buffer_size: '3276800'
     comment: ''
@@ -497,7 +497,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.5
+    uri: 192.168.2.3
   states:
     bus_sink: false
     bus_source: false
@@ -528,7 +528,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.5
+    uri: 192.168.2.3
   states:
     bus_sink: false
     bus_source: false
@@ -1030,7 +1030,7 @@ blocks:
 - name: zeromq_sub_source_0
   id: zeromq_sub_source
   parameters:
-    address: tcp://127.0.0.1:2235
+    address: tcp://127.0.0.1:2234
     affinity: ''
     alias: ''
     bind: 'False'
