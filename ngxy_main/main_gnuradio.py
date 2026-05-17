@@ -8,10 +8,12 @@ RECORD_SIGNAL_ON = True
 NUM_SAMPS = 4e4
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.02
-TIMEOUT_ROS_FACTION_QUERY = 10000 # 不主动搜索阵营
+# TIMEOUT_ROS_FACTION_QUERY = 10000 # 不主动搜索阵营
+TIMEOUT_ROS_FACTION_QUERY = 3
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
 TIMEOUT_FACTION_SHARCH = 5
 TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
+# TIMEOUT_INF_LEVEL = 7
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
 
@@ -29,6 +31,7 @@ class DeviceConfig:
 	device_inf_addr: str | None
 	device_backup_addr: str | None
 
+from extract_usb import *
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
 	device_inf=SERIAL_PLUTO_NANO_1,
@@ -80,8 +83,11 @@ from util import _log, _makesure_path_exist
 
 import rclpy
 
-from extract_usb import *
 from def_signal import *
+BW_SIG /= 2
+BW_1 /= 2
+BW_2 /= 2
+BW_3 /= 2
 from def_taps import *
 import region_games
 from frame_decoder_zmq import frame_decoder_zmq
@@ -100,25 +106,8 @@ def _json_default(value):
 
 def _publish_ros_messages(ros_node, data_dict: dict) -> None:
 	json_str = json.dumps(data_dict, default=_json_default, ensure_ascii=False)
-	print(f"Publishing ROS2 message: {json_str}")
-	logging.log(logging.INFO, f"Publishing ROS2 message: {json_str}")
+	_log(logging.INFO, f"Publishing ROS2 message: {json_str}")
 	ros_node.publish_wireless_result(json_str)
-
-
-def _build_ros_queue_callback(
-	ros_queue: Queue[dict],
-	name: str,
-	last_decode_time: dict[str, float],
-	status_lock: threading.Lock,
-):
-	def _on_frame_decoded(data_dict_list: list[dict]):
-		now = time.time()
-		with status_lock:
-			last_decode_time[name] = now
-		for data_dict in data_dict_list:
-			ros_queue.put(data_dict)
-
-	return _on_frame_decoded
 
 
 def _build_sig_params(site: CurrentSite) -> tuple[float, float, object]:
@@ -139,10 +128,27 @@ def _build_inf_params(level: int, site: CurrentSite) -> tuple[float, float, obje
 	return freq_map[level], bw_map[level], taps_map[level]
 
 
-def query_device_addr(device: str) -> str | None:
+def _clear_cached_device_addr(device: str) -> None:
+	if device == device_conf.device_sig:
+		device_conf.device_sig_addr = None
+	elif device == device_conf.device_inf:
+		device_conf.device_inf_addr = None
+	else:
+		device_conf.device_backup_addr = None
+
+
+def _cache_all_device_addrs(devices: list[tuple[str, str]]) -> None:
+	device_lookup = {serial.lower(): usb_addr for serial, usb_addr in devices}
+	device_conf.device_sig_addr = device_lookup.get(device_conf.device_sig.lower())
+	device_conf.device_inf_addr = device_lookup.get(device_conf.device_inf.lower())
+	device_conf.device_backup_addr = device_lookup.get(device_conf.device_backup.lower())
+
+
+def query_device_addr(device: str, force_refresh: bool = False) -> str | None:
 	"""进行usb地址查询 优先使用缓存过的 可能返回None"""
+	global last_get_iio_info_time
 	if device == "rtlsdr":
-		logging.warning("RTL-SDR is not supported by region_games flowgraph.")
+		_log(logging.WARNING, "RTL-SDR is not supported by region_games flowgraph.")
 		return None
 
 	if device == device_conf.device_sig:
@@ -151,67 +157,26 @@ def query_device_addr(device: str) -> str | None:
 		cached_addr = device_conf.device_inf_addr
 	else:
 		cached_addr = device_conf.device_backup_addr
+		
+	if force_refresh:
+		_clear_cached_device_addr(device)
+		cached_addr = None
 
 	if cached_addr is not None:
-		print(f"Using cached USB address for {device}: {cached_addr}")
-		logging.log(logging.INFO, f"Using cached USB address for {device}: {cached_addr}")
+		_log(logging.INFO, f"Using cached USB address for {device}: {cached_addr}")
 		return cached_addr
 
-	if time.time() - last_get_iio_info_time < INTERVAL_IIO_INFO:
+	if (not force_refresh) and (time.time() - last_get_iio_info_time < INTERVAL_IIO_INFO):
 		_log(logging.INFO, "iio_info query too frequent")
 		return None
 	devices = get_all_pluto_devices(timeout=TIMEOUT_DEVICE_SEARCH)
-	print(f"Found Pluto devices: {devices}")
-	logging.log(logging.INFO, f"Found Pluto devices: {devices}")
+	last_get_iio_info_time = time.time()
+	_cache_all_device_addrs(devices)
+	_log(logging.INFO, f"Found Pluto devices: {devices}")
 	usb_name = get_pluto_usb_by_serial(devices, device)
 	if usb_name is None:
 		_log(logging.WARNING,f"Pluto device not found for serial {device}. ")
-
-	if device == device_conf.device_sig:
-		device_conf.device_sig_addr = usb_name
-	elif device == device_conf.device_inf:
-		device_conf.device_inf_addr = usb_name
-	else:
-		device_conf.device_backup_addr = usb_name
 	return usb_name
-
-
-def _start_region_top(
-	zmq_addr: str,
-	device_serial: str,
-	center_freq: float,
-	bandwidth: float,
-	taps_pre,
-	filename,
-	num_samps=NUM_SAMPS,
-) -> region_games.top | None:
-	"""不会raise 但可能返回None"""
-	pluto_addr = query_device_addr(device_serial)
-	if pluto_addr is None:
-		_log(logging.WARNING, "pluto_addr is None")
-		return None
-	flow = region_games.top(
-		zmq_addr,
-		pluto_addr,
-		center_freq,
-		bandwidth,
-		TAPS_LPF,
-		taps_pre,
-		filename, 
-		num_samps,
-	)
-	flow.start()
-	return flow
-
-
-def _stop_region_top(flow: region_games.top | None) -> None:
-	if flow is None:
-		return
-	try:
-		flow.stop()
-	except Exception as exc:
-		logging.warning("Failed to stop region_games flowgraph: %s", exc)
-
 
 def main(
 	devices: DeviceConfig,
@@ -271,7 +236,7 @@ def main(
 					handle.write(f"{time.time()},{to_write}\n")
 				error_logged.add(device)
 			except Exception as exc:
-				logging.warning("Failed to record device error for %s: %s", device, exc)
+				_log(logging.WARNING, f"Failed to record device error for {device}: {exc}")
 
 	def _build_sig_config(device: str, site: CurrentSite) -> tuple[str, float, float, object, str]:
 		center_freq, bandwidth, taps_pre = _build_sig_params(site)
@@ -306,12 +271,15 @@ def main(
 		stop_fn = getattr(wrapper, "stop", None)
 		if callable(stop_fn):
 			try:
-				stop_fn()
+				stop_fn(timeout=join_timeout, force_kill=True)
 			except Exception as exc:
-				logging.warning("Failed to stop %s cleanly: %s", name, exc)
+				_log(logging.WARNING, f"Failed to stop {name} cleanly with timeout args: {exc}")
 				process = getattr(wrapper, "process", None)
 				if process is not None:
 					try:
+						stop_event = getattr(wrapper, "_stop_event", None)
+						if stop_event is not None:
+							stop_event.set()
 						process.join(timeout=join_timeout)
 						if process.is_alive():
 							process.terminate()
@@ -353,6 +321,7 @@ def main(
 				on_frame_decoded=_build_decoder_callback(name),
 				crc16_enabled=True,
 			)
+			_log(logging.INFO, f"Started {name} [{decoder_type}] decoder thread with ZMQ address {zmq_addr}")
 
 	def _start_process(name: str, device_serial: str, site: CurrentSite, level: int = 1) -> bool:
 		if _should_stop():
@@ -362,29 +331,51 @@ def main(
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_sig_config(device_serial, site)
 		else:
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_inf_config(level, device_serial, site)
+		_log(logging.INFO, f"Starting {name} with device {device_serial} at freq {center_freq} Hz, bandwidth {bandwidth} Hz, level {level}")
 		pluto_addr = query_device_addr(device_serial)
 		if pluto_addr is None:
-			_record_device_error(device_serial)
-			return False
+			_log(logging.WARNING, f"No USB address for {name} on {device_serial}, forcing iio_info refresh")
+			pluto_addr = query_device_addr(device_serial, force_refresh=True)
+			if pluto_addr is None:
+				_record_device_error(device_serial)
+				return False
 		filename = None
 		if RECORD_SIGNAL_ON:
 			filename = f"rec/{name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.iq"
-		wrapper = region_games.top_thread_wrapper(
-			zmq_addr,
-			pluto_addr,
-			center_freq,
-			bandwidth,
-			TAPS_LPF,
-			taps_pre,
-			filename,
-			NUM_SAMPS,
-		)
-		try:
-			wrapper.start()
-		except Exception as exc:
-			logging.warning("Failed to start %s on %s: %s", name, device_serial, exc)
-			_record_device_error(device_serial)
-			return False
+
+		def _launch_with_addr(addr: str):
+			wrapper = region_games.top_thread_wrapper(
+				zmq_addr,
+				addr,
+				center_freq,
+				bandwidth,
+				TAPS_LPF,
+				taps_pre,
+				filename,
+				NUM_SAMPS,
+			)
+			try:
+				wrapper.start()
+			except Exception as exc:
+				_log(logging.WARNING, f"Failed to start {name} on {device_serial} ({addr}): {exc}")
+				return None
+			time.sleep(0.2)
+			if not wrapper.is_alive():
+				_log(logging.WARNING, f"{name} exited immediately after start on {device_serial} ({addr})")
+				return None
+			return wrapper
+
+		wrapper = _launch_with_addr(pluto_addr)
+		if wrapper is None:
+			_log(logging.WARNING, f"Retrying {name} with refreshed USB address for {device_serial}")
+			fresh_addr = query_device_addr(device_serial, force_refresh=True)
+			if fresh_addr is None:
+				_record_device_error(device_serial)
+				return False
+			wrapper = _launch_with_addr(fresh_addr)
+			if wrapper is None:
+				_record_device_error(device_serial)
+				return False
 		with status_lock:
 			process_wrappers[name] = wrapper
 			process_devices[name] = device_serial
@@ -396,15 +387,15 @@ def main(
 		start_time = time.time()
 		while time.time() - start_time < timeout_sec:
 			if _should_stop():
-				return False
+				return False, None
 			with status_lock:
 				last_time = last_decode_time.get(worker_name, 0.0)
 			if last_time >= start_time:
-				return True
+				return True, None
 			if not _process_alive(worker_name):
-				return False
+				return False, "err"
 			time.sleep(0.05)
-		return False
+		return False, None
 
 	def _get_faction_with_timeout(node: WirelessRos2AdaptorNodeThreaded, timeout_sec: float) -> Faction | None:
 		start_time = time.time()
@@ -418,36 +409,30 @@ def main(
 	def _probe_faction_site(site: CurrentSite) -> CurrentSite | None:
 		primary_device = devices.device_inf
 		backup_device = devices.device_backup if devices.device_backup and devices.device_backup != primary_device else None
-		logging.info("Probing faction candidate: %s (primary=%s, backup=%s)", site.name, primary_device, backup_device)
-		print(f"Probing faction candidate: {site.name} (primary={primary_device}, backup={backup_device})")
+		_log(logging.INFO, f"Probing faction candidate: {site.name} (primary={primary_device}, backup={backup_device})")
 
 		if not _start_process("rx_inf", primary_device, site):
 			_record_device_error(primary_device)
 			if backup_device is not None and _start_process("rx_inf", backup_device, site, level=1):
-				decoded = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
+				_log(logging.INFO, f"Primary device {primary_device} produced err, switching to backup device {backup_device}")
+				decoded, err = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
 				_ensure_process_stopped("rx_inf")
 				if decoded:
 					return site
 				_record_device_error(backup_device)
 			return None
 
-		decoded = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
+		decoded, err = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
 		stopped = _ensure_process_stopped("rx_inf")
 		if decoded:
 			return site
 		if not stopped:
-			logging.warning("rx_inf did not stop cleanly; retrying probe for %s", site.name)
+			_log(logging.WARNING, f"rx_inf did not stop cleanly; retrying probe for {site.name}")
 
-		if backup_device is not None:
-			print(f"Primary device {primary_device} produced no decode for {site.name}, switching to backup device {backup_device}...")
-			logging.info(
-				"Primary device %s produced no decode for %s, switching to backup device %s",
-				primary_device,
-				site.name,
-				backup_device,
-			)
+		if backup_device is not None and err:
+			_log(logging.INFO, f"Primary device {primary_device} produced err, switching to backup device {backup_device}")
 			if _start_process("rx_inf", backup_device, site, level=1):
-				decoded = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
+				decoded, err = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
 				_ensure_process_stopped("rx_inf")
 				if decoded:
 					return site
@@ -466,31 +451,24 @@ def main(
 			node_name="main_node",
 		)
 		ros_node.start()
-		print("ROS2 main node started")
-		logging.info("ROS2 main node started")
+		_log(logging.INFO, "ROS2 main node started")
 		faction = _get_faction_with_timeout(ros_node, faction_timeout)
-		print(f"Got faction from ROS node: {faction}")
-		logging.info("Got faction from ROS node: %s", faction)
+		_log(logging.INFO, f"Got faction from ROS node: {faction}")
 		if faction == Faction.RED:
 			current_site = CurrentSite.RED
-			print("Determined faction from ROS node: RED")
-			logging.info("Determined faction from ROS node: RED")
+			_log(logging.INFO, "Determined faction from ROS node: RED")
 		elif faction == Faction.BLUE:
 			current_site = CurrentSite.BLUE
-			print("Determined faction from ROS node: BLUE")
-			logging.info("Determined faction from ROS node: BLUE")
+			_log(logging.INFO, "Determined faction from ROS node: BLUE")
 		else:
-			print(f"Failed to determine faction from ROS node, got: {faction}")
-			logging.warning("Failed to determine faction from ROS node, got: %s", faction)
+			_log(logging.WARNING, f"Failed to determine faction from ROS node, got: {faction}")
 	except Exception as exc:
 		ros_node = None
-		print(f"ROS2 main node unavailable: {exc}")
-		logging.error("ROS2 main node unavailable: %s", exc)
+		_log(logging.ERROR, f"ROS2 main node unavailable: {exc}")
 
 	# ros获取阵营信息失败 尝试解干扰波获取阵营信息
 	if current_site is None:
-		print("Attempting to determine faction from signal decoding...")
-		logging.info("Attempting to determine faction from signal decoding...")
+		_log(logging.INFO, "Attempting to determine faction from signal decoding...")
 		while True:
 			if _should_stop():
 				return
@@ -502,8 +480,7 @@ def main(
 					current_site = probe_result
 					break
 			if current_site is not None:
-				print(f"Determined faction from signal decoding: {current_site.name}")
-				logging.info("Determined faction from signal decoding: %s", current_site.name)
+				_log(logging.INFO, f"Determined faction from signal decoding: {current_site.name}")
 				break
 			time.sleep(0.5)
 
@@ -516,25 +493,19 @@ def main(
 		if devices.device_backup and devices.device_backup != devices.device_inf:
 			_start_process("rx_inf", devices.device_backup, current_site, inf_level)
 
-	logging.info(
-		"Main control started with initial config: rx_sig on %s, rx_inf on %s (inf level %d)",
-		process_devices.get("rx_sig", devices.device_sig),
-		process_devices.get("rx_inf", devices.device_inf),
-		inf_level,
-	)
-	print(
-		f"Main control started with initial config: rx_sig on {process_devices.get('rx_sig', devices.device_sig)}, "
-		f"rx_inf on {process_devices.get('rx_inf', devices.device_inf)} (inf level {inf_level})"
-	)
+	_log(logging.INFO, f"Main control started with initial config: rx_sig on {process_devices.get('rx_sig', devices.device_sig)}, rx_inf on {process_devices.get('rx_inf', devices.device_inf)} (inf level {inf_level})")
 
 	try:
+		#  刷新ros队列
+		ros_publish_queue = Queue()
 		while True:
-			# TODO: ROS queue clear
 			if _should_stop():
 				break
 
 			# 发布ROS信息
 			if ros_node is not None:
+				# print("====================================")
+				# print(ros_publish_queue.qsize())
 				try:
 					while True:
 						data_dict = ros_publish_queue.get_nowait()
@@ -547,6 +518,27 @@ def main(
 						ros_publish_queue.get_nowait()
 				except Empty:
 					pass
+			
+			# 切换干扰等级逻辑
+			ros_level_applied = False
+			try:
+				while True:
+					new_level = ros_level_queue.get_nowait()
+					# print("====================================")
+					# print(f"Received new encrypt level from ROS: {new_level}")
+					if new_level in (1, 2, 3) and new_level != inf_level:
+						stopped = _ensure_process_stopped("rx_inf")
+						if stopped:
+							inf_level = new_level
+							with status_lock:
+								inf_device = process_devices.get("rx_inf", devices.device_inf)
+							_start_process("rx_inf", inf_device, current_site, inf_level)
+							with status_lock:
+								last_decode_time["rx_inf"] = time.time()
+							ros_level_applied = True
+							_log(logging.INFO, f"rx_inf switched to level {inf_level} due to ROS command")
+			except Empty:
+				pass
 
 			# 每两轮操作设备起停设置一个时间间隔，避免过于频繁地切换设备
 			if time.time() - last_device_ctrl_time >= main_cycle_device_ctrl_interval:
@@ -555,6 +547,8 @@ def main(
 					if _process_alive(name):
 						continue
 					# 进程不存活
+					print("============================")
+					print(f"{name}dead")
 					with status_lock:
 						current_device = process_devices.get(name)
 					_record_device_error(current_device)
@@ -565,8 +559,7 @@ def main(
 							_start_process("rx_inf", devices.device_backup, current_site, inf_level)
 						else:
 							_start_process("rx_sig", devices.device_backup, current_site)
-						print(f"Switched {name} to backup device: {devices.device_backup}")
-						logging.info("Switched %s to backup device: %s", name, devices.device_backup)
+							_log(logging.INFO, f"Switched {name} to backup device: {devices.device_backup}")
 					# 备用设备被占用 尝试重启一次主要设备
 					elif backup_owner is not None and current_device == main_device_map.get(name):
 						with status_lock:
@@ -585,26 +578,6 @@ def main(
 						else:
 							_start_process("rx_sig", main_device_map.get(name), current_site)
 
-				# 切换干扰等级逻辑
-				ros_level_applied = False
-				try:
-					while True:
-						new_level = ros_level_queue.get_nowait()
-						if new_level in (1, 2, 3) and new_level != inf_level:
-							stopped = _ensure_process_stopped("rx_inf")
-							if stopped:
-								inf_level = new_level
-								with status_lock:
-									inf_device = process_devices.get("rx_inf", devices.device_inf)
-								_start_process("rx_inf", inf_device, current_site, inf_level)
-								with status_lock:
-									last_decode_time["rx_inf"] = time.time()
-								ros_level_applied = True
-								print(f"rx_inf switched to level {inf_level} due to ROS command")
-								logging.info("rx_inf switched to level %s due to ROS command", inf_level)
-				except Empty:
-					pass
-
 				# 未解出也未收到ROS指令时的自动切换逻辑
 				if not ros_level_applied:
 					with status_lock:
@@ -618,8 +591,7 @@ def main(
 							if stopped:
 								inf_level = 1 if inf_level >= 2 else inf_level + 1
 								_start_process("rx_inf", inf_device, current_site, inf_level)
-								print(f"rx_inf switched to next level {inf_level} due to timeout")
-								logging.info("rx_inf switched to next level %d due to timeout", inf_level)
+								_log(logging.INFO, f"rx_inf switched to next level {inf_level} due to timeout")
 
 				#  最后检查一遍是否还是有设备未在运行 如果有则尝试重启
 				with status_lock:
@@ -628,15 +600,16 @@ def main(
 					rx_sig_running = rx_sig_wrapper is not None and getattr(rx_sig_wrapper, "process", None) is not None and rx_sig_wrapper.process.is_alive()
 					rx_inf_running = rx_inf_wrapper is not None and getattr(rx_inf_wrapper, "process", None) is not None and rx_inf_wrapper.process.is_alive()
 				if not rx_sig_running:
-					print("rx_sig is not running, attempting to restart...")
-					logging.info("rx_sig is not running, attempting to restart...")
+					_log(logging.INFO, "rx_sig is not running, attempting to restart...")
 					_start_process("rx_sig", process_devices.get("rx_sig", devices.device_sig), current_site)
 				if not rx_inf_running:
-					print("rx_inf is not running, attempting to restart...")
-					logging.info("rx_inf is not running, attempting to restart...")
+					_log(logging.INFO, "rx_inf is not running, attempting to restart...")
 					_start_process("rx_inf", process_devices.get("rx_inf", devices.device_inf), current_site, inf_level)
 
-			last_device_ctrl_time = time.time()
+				last_device_ctrl_time = time.time()
+				# 防止过时消息
+				ros_publish_queue = Queue()
+
 			time.sleep(main_cycle_update_interval)
 	finally:
 		with status_lock:
