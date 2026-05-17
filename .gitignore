@@ -9,3 +9,4 @@ log/*
 *.iq
 wireless_ros2_adaptor.py
 rtlsdr_setup
+error

@@ -44,7 +44,7 @@ class frame_decoder_direct:
         crc8_enabled: bool = True,
         crc16_enabled: bool = True,
         on_frame_decoded=None,
-        payload_tail_limit: int = 4096,
+        payload_tail_limit: int = 50,
     ):
         if type not in ("signal", "jamming"):
             raise ValueError(f"Unsupported type: {type}")
@@ -137,7 +137,7 @@ class frame_decoder_direct:
         bias_data = LEN_HEADER + LEN_CMD_ID
         data = frame_serial[bias_data:bias_data + data_length]
         fields = SERIAL_FIELDS[cmd_name]
-        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] parsing cmd: {cmd_name} with fields: {fields}")
+        logging.log(logging.DEBUG, f"[frame_decoder_direct][{self._type}] parsing cmd: {cmd_name}")
 
         data_dict = {}
         offset = 0
@@ -170,6 +170,7 @@ class frame_decoder_direct:
     def _scan_serial_frames(self) -> list[dict]:
         if len(self._payload_buffer) == 0:
             return []
+        logging.info(f"[frame_decoder_direct][{self._type}] DECODE SERIAL:payload buffer of size {len(self._payload_buffer)}")
 
         payload = bytes(self._payload_buffer)
         out: list[dict] = []
@@ -211,6 +212,7 @@ class frame_decoder_direct:
         self._payload_buffer = bytearray(payload[cursor:])
         if len(self._payload_buffer) > self._payload_tail_limit:
             self._payload_buffer = self._payload_buffer[-self._payload_tail_limit:]
+        logging.debug(f"[frame_decoder_direct][{self._type}] cut payload buffer size: {len(self._payload_buffer)}")
 
         return out
 
