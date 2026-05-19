@@ -17,11 +17,11 @@ if not FILTER_INTERFERENCE:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from numpy.fft import fft, fftfreq, fftshift
-    plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE))), abs(fftshift(fft(TAPS_LPF_PRE))))
-    plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE_1))), abs(fftshift(fft(TAPS_LPF_PRE_1))))
-    plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE_2))), abs(fftshift(fft(TAPS_LPF_PRE_2))))
+    # plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE))), abs(fftshift(fft(TAPS_LPF_PRE))))
+    # plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE_1))), abs(fftshift(fft(TAPS_LPF_PRE_1))))
+    # plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE_2))), abs(fftshift(fft(TAPS_LPF_PRE_2))))
     plt.plot(fftshift(fftfreq(len(TAPS_LPF_PRE_3))), abs(fftshift(fft(TAPS_LPF_PRE_3))))
     plt.show()
 
-    plt.plot(fftshift(fftfreq(len(TAPS_LPF))), abs(fftshift(fft(TAPS_LPF))))
-    plt.show()
+    # plt.plot(fftshift(fftfreq(len(TAPS_LPF))), abs(fftshift(fft(TAPS_LPF))))
+    # plt.show()

@@ -8,12 +8,13 @@ RECORD_SIGNAL_ON = True
 NUM_SAMPS = 4e4
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.02
-# TIMEOUT_ROS_FACTION_QUERY = 10000 # 不主动搜索阵营
-TIMEOUT_ROS_FACTION_QUERY = 3
+TIMEOUT_ROS_FACTION_QUERY = 10000 # 不主动搜索阵营
+# TIMEOUT_ROS_FACTION_QUERY = 3
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
 TIMEOUT_FACTION_SHARCH = 5
-TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
-# TIMEOUT_INF_LEVEL = 7
+# TIMEOUT_FACTION_SHARCH = 10000 # always red
+# TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
+TIMEOUT_INF_LEVEL = 20
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
 
@@ -34,7 +35,8 @@ class DeviceConfig:
 from extract_usb import *
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
-	device_inf=SERIAL_PLUTO_NANO_1,
+	device_inf=SERIAL_PLUTO_NANO_1,	
+	# device_inf=SERIAL_PLUTO_SDR,
 	device_backup=SERIAL_PLUTO_NANO_0,
 	device_sig_addr=None,
 	device_inf_addr=None,
@@ -222,8 +224,7 @@ def main(
 	def _record_device_error(device: str | None) -> None:
 		if not device:
 			return
-		count = error_counts.get(device, 0) + 1
-		error_counts[device] = count
+		count = error_counts.get(device, 0) + 1 
 		if count > 5 and device not in error_logged:
 			try:
 				const_name = None
@@ -341,7 +342,7 @@ def main(
 				return False
 		filename = None
 		if RECORD_SIGNAL_ON:
-			filename = f"rec/{name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.iq"
+			filename = f"rec/{name}_{center_freq}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.iq"
 
 		def _launch_with_addr(addr: str):
 			wrapper = region_games.top_thread_wrapper(
@@ -547,8 +548,8 @@ def main(
 					if _process_alive(name):
 						continue
 					# 进程不存活
-					print("============================")
-					print(f"{name}dead")
+					# print("============================")
+					# print(f"{name}dead")
 					with status_lock:
 						current_device = process_devices.get(name)
 					_record_device_error(current_device)
