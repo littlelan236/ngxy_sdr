@@ -141,7 +141,7 @@ class only_tx(gr.top_block, Qt.QWidget):
         self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0.set_frequency(fc)
+        self.iio_pluto_sink_0.set_frequency(fc_1)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
         self.iio_pluto_sink_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
@@ -266,13 +266,13 @@ class only_tx(gr.top_block, Qt.QWidget):
 
     def set_fc_1(self, fc_1):
         self.fc_1 = fc_1
+        self.iio_pluto_sink_0.set_frequency(self.fc_1)
 
     def get_fc(self):
         return self.fc
 
     def set_fc(self, fc):
         self.fc = fc
-        self.iio_pluto_sink_0.set_frequency(self.fc)
 
 
 

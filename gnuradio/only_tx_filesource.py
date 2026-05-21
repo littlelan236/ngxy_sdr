@@ -139,14 +139,66 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 3276800, True)
+        self.qtgui_freq_sink_x_0 = qtgui.freq_sink_c(
+            8192, #size
+            window.WIN_BLACKMAN_hARRIS, #wintype
+            0, #fc
+            samp_rate, #bw
+            "", #name
+            1,
+            None # parent
+        )
+        self.qtgui_freq_sink_x_0.set_update_time(0.10)
+        self.qtgui_freq_sink_x_0.set_y_axis((-140), 10)
+        self.qtgui_freq_sink_x_0.set_y_label('Relative Gain', 'dB')
+        self.qtgui_freq_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, 0.0, 0, "")
+        self.qtgui_freq_sink_x_0.enable_autoscale(False)
+        self.qtgui_freq_sink_x_0.enable_grid(False)
+        self.qtgui_freq_sink_x_0.set_fft_average(1.0)
+        self.qtgui_freq_sink_x_0.enable_axis_labels(True)
+        self.qtgui_freq_sink_x_0.enable_control_panel(True)
+        self.qtgui_freq_sink_x_0.set_fft_window_normalized(False)
+
+
+
+        labels = ['', '', '', '', '',
+            '', '', '', '', '']
+        widths = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+        colors = ["blue", "red", "green", "black", "cyan",
+            "magenta", "yellow", "dark red", "dark green", "dark blue"]
+        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0]
+
+        for i in range(1):
+            if len(labels[i]) == 0:
+                self.qtgui_freq_sink_x_0.set_line_label(i, "Data {0}".format(i))
+            else:
+                self.qtgui_freq_sink_x_0.set_line_label(i, labels[i])
+            self.qtgui_freq_sink_x_0.set_line_width(i, widths[i])
+            self.qtgui_freq_sink_x_0.set_line_color(i, colors[i])
+            self.qtgui_freq_sink_x_0.set_line_alpha(i, alphas[i])
+
+        self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
+        self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0.set_len_tag_key('packet_len')
+        self.iio_pluto_source_0.set_frequency(fc)
+        self.iio_pluto_source_0.set_samplerate(samp_rate)
+        self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
+        self.iio_pluto_source_0.set_gain(0, 64)
+        self.iio_pluto_source_0.set_quadrature(True)
+        self.iio_pluto_source_0.set_rfdc(True)
+        self.iio_pluto_source_0.set_bbdc(True)
+        self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 327680, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(1000000)
-        self.iio_pluto_sink_0.set_frequency(fc_blue)
-        self.iio_pluto_sink_0.set_samplerate(samp_rate)
-        self.iio_pluto_sink_0.set_attenuation(0, 30)
+        self.iio_pluto_sink_0.set_frequency(fc_1)
+        self.iio_pluto_sink_0.set_samplerate(2000000)
+        self.iio_pluto_sink_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\rec\\sig1', True, 0, 0)
+        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Downloads\\RX_BLUE_ganrao_3', True, 0, 0)
         self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
 
 
@@ -155,6 +207,7 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
         ##################################################
         self.connect((self.blocks_file_source_0, 0), (self.iio_pluto_sink_0, 0))
         self.connect((self.blocks_file_source_0, 0), (self.qtgui_time_sink_x_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
 
 
     def closeEvent(self, event):
@@ -172,7 +225,8 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
         self.samp_rate = samp_rate
         self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
         self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
-        self.iio_pluto_sink_0.set_samplerate(self.samp_rate)
+        self.iio_pluto_source_0.set_samplerate(self.samp_rate)
+        self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
 
     def get_taps_lpf_pre(self):
@@ -258,7 +312,6 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
     def set_fc_blue(self, fc_blue):
         self.fc_blue = fc_blue
-        self.iio_pluto_sink_0.set_frequency(self.fc_blue)
 
     def get_fc_3(self):
         return self.fc_3
@@ -277,12 +330,14 @@ class only_tx_filesource(gr.top_block, Qt.QWidget):
 
     def set_fc_1(self, fc_1):
         self.fc_1 = fc_1
+        self.iio_pluto_sink_0.set_frequency(self.fc_1)
 
     def get_fc(self):
         return self.fc
 
     def set_fc(self, fc):
         self.fc = fc
+        self.iio_pluto_source_0.set_frequency(self.fc)
 
 
 

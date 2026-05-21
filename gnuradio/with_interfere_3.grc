@@ -521,15 +521,15 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    attenuation1: '55'
+    attenuation1: '50'
     bandwidth: signal_bandwidth
-    buffer_size: '32768'
+    buffer_size: '3276800'
     comment: ''
     cyclic: 'True'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue
+    frequency: fc
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
@@ -539,7 +539,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [664, 288.0]
+    coordinate: [672, 292.0]
     rotation: 0
     state: enabled
 - name: iio_pluto_sink_0_0_0
@@ -555,7 +555,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue_3
+    frequency: fc_3
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
@@ -580,7 +580,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc_blue
+    frequency: fc
     fstop: '0'
     gain1: '''slow_attack'''
     len_tag_key: packet_len
@@ -591,7 +591,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.5
+    uri: 192.168.2.1
   states:
     bus_sink: false
     bus_source: false
@@ -629,7 +629,7 @@ blocks:
     color8: '"dark red"'
     color9: '"dark green"'
     comment: ''
-    ctrlpanel: 'False'
+    ctrlpanel: 'True'
     fc: '0'
     fftsize: '1024'
     freqhalf: 'True'
@@ -1093,7 +1093,7 @@ blocks:
 - name: zeromq_sub_source_0
   id: zeromq_sub_source
   parameters:
-    address: tcp://127.0.0.1:2235
+    address: tcp://127.0.0.1:2234
     affinity: ''
     alias: ''
     bind: 'False'

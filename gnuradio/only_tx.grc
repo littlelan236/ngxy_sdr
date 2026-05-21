@@ -275,7 +275,7 @@ blocks:
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc
+    frequency: fc_1
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
