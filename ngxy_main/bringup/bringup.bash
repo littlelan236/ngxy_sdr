@@ -1,5 +1,3 @@
-cd /home/ubuntu/radar2026/radio26
-source ngxy_main/bringup/_setup.bash
-
-cd /home/ubuntu/radar2026/radio26
-/home/ubuntu/radar2026/radio26/.venv/bin/python /home/ubuntu/radar2026/radio26/ngxy_main/main_rx_ctrl.py
+export PYTHONPATH=/usr/lib/python3/dist-packages/:$PYTHONPATH
+export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+/home/ubuntu/radar2026/radio26/.venv/bin/python /home/ubuntu/radar2026/radio26/ngxy_main/main_gnuradio.py

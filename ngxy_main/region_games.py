@@ -14,21 +14,18 @@ import math
 from gnuradio import blocks
 from gnuradio import digital
 from gnuradio import filter
-from gnuradio.filter import firdes
 from gnuradio import gr
-from gnuradio.fft import window
 import sys
-from pathlib import Path
 import signal
-from argparse import ArgumentParser
-from gnuradio.eng_arg import eng_float, intx
-from gnuradio import eng_notation
 from gnuradio import iio
 from gnuradio import zeromq
 import region_games_epy_block_0_0 as epy_block_0_0  # embedded python block
 import multiprocessing
 import threading
 import logging
+import os
+import re
+import select
 from util import _log, _makesure_path_exist
 
 class region_games(gr.top_block):
@@ -64,7 +61,7 @@ class region_games(gr.top_block):
         ##################################################
 
         self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, zmq_addr, 100, False, (-1), '', True, True)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32(pluto_addr if pluto_addr else iio.get_pluto_uri(), [True, True], num_samps)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32(pluto_addr if pluto_addr else iio.get_pluto_uri(), [True, True], int(num_samps))
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
@@ -195,6 +192,59 @@ def _region_games_process_worker(zmq_send_addr, pluto_addr, fc, bandwidth, taps_
     if not hasattr(worker_top, "tb"):
         return
 
+    stderr_patterns = (
+        re.compile(r"READ LINE: -5"),
+        re.compile(r"READ INTEGER: -5"),
+        re.compile(r"Unable to refill buffer"),
+        re.compile(r"Input/output error \(5\)"),
+        re.compile(r"error initializing gnuradio flowgraph"),
+        re.compile(r"error starting gnuradio flowgraph"),
+    )
+
+    def _stderr_watchdog() -> None:
+        try:
+            read_fd, write_fd = os.pipe()
+            saved_stderr_fd = os.dup(2)
+            try:
+                os.dup2(write_fd, 2)
+            finally:
+                os.close(write_fd)
+        except Exception as e:
+            _log(logging.WARNING, f"[GnuradioClass] failed to install stderr watchdog: {e}")
+            return
+
+        try:
+            with os.fdopen(read_fd, "rb", closefd=True) as pipe_reader:
+                while not stop_event.is_set():
+                    ready, _, _ = select.select([pipe_reader], [], [], 0.2)
+                    if not ready:
+                        continue
+                    chunk = pipe_reader.readline()
+                    if not chunk:
+                        break
+                    try:
+                        os.write(saved_stderr_fd, chunk)
+                    except Exception:
+                        pass
+                    line = chunk.decode(errors="ignore")
+                    if any(pattern.search(line) for pattern in stderr_patterns):
+                        _log(logging.ERROR, f"[GnuradioClass] stderr watchdog detected fatal GNU Radio error: {line.strip()}")
+                        stop_event.set()
+                        try:
+                            worker_top.stop()
+                        except Exception as e:
+                            _log(logging.ERROR, f"[GnuradioClass] error stopping gnuradio flowgraph after stderr failure: {e}")
+                        break
+        finally:
+            try:
+                os.dup2(saved_stderr_fd, 2)
+            except Exception:
+                pass
+            try:
+                os.close(saved_stderr_fd)
+            except Exception:
+                pass
+
     def _stop_when_requested():
         worker_top.tb.flowgraph_started.wait()
         stop_event.wait()
@@ -204,7 +254,9 @@ def _region_games_process_worker(zmq_send_addr, pluto_addr, fc, bandwidth, taps_
             _log(logging.ERROR, f"[GnuradioClass] error stopping gnuradio flowgraph: {e}")
 
     stop_thread = threading.Thread(target=_stop_when_requested, daemon=True)
+    stderr_thread = threading.Thread(target=_stderr_watchdog, daemon=True)
     stop_thread.start()
+    stderr_thread.start()
     try:
         worker_top.start()
     finally:
@@ -247,11 +299,22 @@ class top_thread_wrapper():
         self.thread = self.process
         self.process.start()
 
-    def stop(self):
-        if self._stop_event is not None:
-            self._stop_event.set()
-        if self.process is not None:
-            self.process.join()
+    def stop(self, timeout=2.0, force_kill=True):
+        process = self.process
+        stop_event = self._stop_event
+
+        if stop_event is not None:
+            stop_event.set()
+
+        if process is not None:
+            process.join(timeout=timeout)
+            if process.is_alive() and force_kill:
+                try:
+                    process.terminate()
+                    process.join(timeout=timeout)
+                except Exception as e:
+                    _log(logging.ERROR, f"[GnuradioClass] error terminating gnuradio process: {e}")
+
         self.process = None
         self.thread = None
         self._stop_event = None

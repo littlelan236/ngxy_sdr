@@ -253,7 +253,7 @@ class frame_decoder_zmq:
         将串口帧中有效信息解析出来
         """
         if self._crc16_enables:
-            if not verify_crc16_check_sum(frame_serial):
+            if not verify_crc16_check_sum(frame_serial, ENDIAN):
                 logging.log(logging.INFO, "[frame_decoder]crc16 verify failed")
                 return None
         data_length = int.from_bytes(frame_serial[LEN_SOF:LEN_SOF + LEN_DATA_LENGTH], ENDIAN)
@@ -281,9 +281,11 @@ class frame_decoder_zmq:
                 logging.log(logging.WARNING, f"[frame_decoder] field length mismatch: {name} expect {length} got {len(raw)}")
                 return None
             if name == "key":
-                value = str(raw)
+                try:
+                    value = raw.decode("ascii", errors="ignore")
+                except Exception:
+                    value = str(raw)
                 if ENDIAN_DATA == "little":
-                    # 翻转字符串
                     value = _reverse_string(value)
             else:
                 if length == 2 or length == 1:
