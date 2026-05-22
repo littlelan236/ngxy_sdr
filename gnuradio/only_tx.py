@@ -138,10 +138,10 @@ class only_tx(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 3276800, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0.set_frequency(fc_1)
+        self.iio_pluto_sink_0.set_frequency(fc_blue)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
         self.iio_pluto_sink_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
@@ -248,6 +248,7 @@ class only_tx(gr.top_block, Qt.QWidget):
 
     def set_fc_blue(self, fc_blue):
         self.fc_blue = fc_blue
+        self.iio_pluto_sink_0.set_frequency(self.fc_blue)
 
     def get_fc_3(self):
         return self.fc_3
@@ -266,7 +267,6 @@ class only_tx(gr.top_block, Qt.QWidget):
 
     def set_fc_1(self, fc_1):
         self.fc_1 = fc_1
-        self.iio_pluto_sink_0.set_frequency(self.fc_1)
 
     def get_fc(self):
         return self.fc
