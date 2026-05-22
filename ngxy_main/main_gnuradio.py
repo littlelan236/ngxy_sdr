@@ -14,10 +14,12 @@ INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
 TIMEOUT_FACTION_SHARCH = 5
 # TIMEOUT_FACTION_SHARCH = 10000 # always red
 # TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
-TIMEOUT_INF_LEVEL = 20
+# TIMEOUT_INF_LEVEL = 20
+TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
 
+SEND_KEY_MAX_FPS = 1
 ZMQ_ADDR_SIG = "tcp://127.0.0.1:2236"
 ZMQ_ADDR_INF = "tcp://127.0.0.1:2235"
 
@@ -316,11 +318,13 @@ def main(
 			decoder = decoder_objects.get(name)
 			if decoder is not None:
 				return
+			emit_max_fps = SEND_KEY_MAX_FPS if decoder_type == "jamming" else None
 			decoder_objects[name] = frame_decoder_zmq(
 				type=decoder_type,
 				zmq_address=zmq_addr,
 				on_frame_decoded=_build_decoder_callback(name),
 				crc16_enabled=True,
+				emit_max_fps=emit_max_fps,
 			)
 			_log(logging.INFO, f"Started {name} [{decoder_type}] decoder thread with ZMQ address {zmq_addr}")
 
