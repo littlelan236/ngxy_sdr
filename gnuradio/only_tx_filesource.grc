@@ -292,7 +292,7 @@ blocks:
     bandwidth: '1000000'
     buffer_size: '3276800'
     comment: ''
-    cyclic: 'True'
+    cyclic: 'False'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
@@ -301,7 +301,7 @@ blocks:
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.4
+    uri: 192.168.2.7
   states:
     bus_sink: false
     bus_source: false
