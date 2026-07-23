@@ -21,6 +21,10 @@ TIMEOUT_FACTION_SHARCH = 5
 TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
+# keep lv1时 剩余时间与基地血量的升级条件
+THRES_REMAINING_TIME_SEC = 120
+THRES_BASE_HP = 2000
+KEEP_LV1_ON = False
 
 SEND_KEY_MAX_FPS = 1
 ZMQ_ADDR_SIG = "tcp://127.0.0.1:2236"
@@ -80,6 +84,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 if str(WORKSPACE_ROOT) not in sys.path:
 	sys.path.insert(0, str(WORKSPACE_ROOT))
 
+import argparse
 from enum import Enum
 import json
 import time
@@ -184,6 +189,19 @@ def query_device_addr(device: str, force_refresh: bool = False) -> str | None:
 	if usb_name is None:
 		_log(logging.WARNING,f"Pluto device not found for serial {device}. ")
 	return usb_name
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--keep-lv1", action=argparse.BooleanOptionalAction, default=False, help="保持一级不自动升级")
+	return parser
+
+
+def apply_cli_args(args: argparse.Namespace) -> None:
+	global KEEP_LV1_ON
+	KEEP_LV1_ON = bool(args.keep_lv1)
+	if KEEP_LV1_ON:
+		_log(logging.INFO, "Keeping level 1 for inf device as per CLI argument")
 
 def main(
 	devices: DeviceConfig,
@@ -310,14 +328,18 @@ def main(
 			time.sleep(0.1)
 		return False
 
-	def _build_decoder_callback(name: str):
+	def _build_decoder_callback(name: str, decoder_type: str, keep_lv1_on):
 		def _on_frame_decoded(data_dict_list: list[dict]) -> None:
 			now = time.time()
 			with status_lock:
 				last_decode_time[name] = now
 				restart_attempted[name] = False
-			for data_dict in data_dict_list:
-				ros_publish_queue.put(data_dict)
+			# 保持一级逻辑 若为干扰波解析器且_levelup_decicer返回False 则不进行上传
+			if decoder_type == "jamming" and not _levelup_decider(ros_node, keep_lv1_on):
+				pass
+			else:
+				for data_dict in data_dict_list:
+					ros_publish_queue.put(data_dict)
 
 		return _on_frame_decoded
 
@@ -330,7 +352,7 @@ def main(
 			decoder_objects[name] = frame_decoder_zmq(
 				type=decoder_type,
 				zmq_address=zmq_addr,
-				on_frame_decoded=_build_decoder_callback(name),
+				on_frame_decoded=_build_decoder_callback(name, decoder_type, KEEP_LV1_ON),
 				crc16_enabled=True,
 				emit_max_fps=emit_max_fps,
 			)
@@ -451,6 +473,15 @@ def main(
 					return site
 				_record_device_error(backup_device)
 		return None
+	
+	def _levelup_decider(ros_node: WirelessRos2AdaptorNodeThreaded, keep_lv1_on) -> bool:
+		"""根据KEEP_LV1_ON和ROS查询得到的剩余时间与基地血量决定是否升级"""
+		if keep_lv1_on:
+			if ros_node.get_remaining_seconds() > THRES_REMAINING_TIME_SEC and ros_node.get_alley_base_HP() > THRES_BASE_HP:
+				return True
+			return False
+		else:  # 不开启升级
+			return True
 
 	# ----------------------------
 	# 启动decoder
@@ -532,7 +563,7 @@ def main(
 				except Empty:
 					pass
 			
-			# 切换干扰等级逻辑
+			# ROS切换干扰等级逻辑 不受INTERVAL_DEVICE_CTRL的控制
 			ros_level_applied = False
 			try:
 				while True:
@@ -645,6 +676,8 @@ if __name__ == "__main__":
 
 	stop_event = threading.Event()
 	try:
+		args = build_arg_parser().parse_args()
+		apply_cli_args(args)
 		main(device_conf, stop_event=stop_event)
 	except KeyboardInterrupt:
 		stop_event.set()

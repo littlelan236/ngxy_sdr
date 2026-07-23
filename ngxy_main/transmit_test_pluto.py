@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
 
     # 生成空口帧的比特流
-    # frames = build_frame_ota_jamming("RM2025")
+    # frames = build_frame_ota_jamming("RM2026")
     frames = build_frame_ota_signal(_generate_payload_random())
     print(len(frames))
 

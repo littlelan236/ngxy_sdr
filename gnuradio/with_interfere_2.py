@@ -327,7 +327,7 @@ class with_interfere_2(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.7' if '192.168.2.7' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.5' if '192.168.2.5' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
