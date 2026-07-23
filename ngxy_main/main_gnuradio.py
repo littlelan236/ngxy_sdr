@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# amplifier: 给原本用作backup的板子接上amplifier，当backup空闲且当前等级已经为三级时，使用amplifier支路尝试进行解析
+# 为了避免潜在的串口通信问题，每次检验Queue中重复信息，重复信息直接丢弃
+
 # 选项
 RECORD_SIGNAL_ON = True
 
@@ -216,12 +219,17 @@ def main(
 	for device in (devices.device_sig, devices.device_inf, devices.device_backup):
 		if device:
 			error_counts.setdefault(device, 0)
+	# 已为三级干扰的标志
+	is_level_3 = False
 
 	def _should_stop() -> bool:
 		return stop_event is not None and stop_event.is_set()
 
 	def _on_ros_encrypt_level_change(new_level: int) -> None:
 		ros_level_queue.put(new_level)
+		if new_level == 3:
+			nonlocal is_level_3
+			is_level_3 = True
 
 	def _record_device_error(device: str | None) -> None:
 		if not device:
@@ -332,7 +340,7 @@ def main(
 		if _should_stop():
 			return False
 		_stop_process(name)
-		if name == "rx_sig":
+		if name in ("rx_sig", "rs_sig_amplifier"):
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_sig_config(device_serial, site)
 		else:
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_inf_config(level, device_serial, site)
@@ -582,6 +590,12 @@ def main(
 							_start_process("rx_inf", main_device_map.get(name), current_site, inf_level)
 						else:
 							_start_process("rx_sig", main_device_map.get(name), current_site)
+
+				# 当干扰等级达到三级且 backup 空闲时，启动额外的 rs_sig_amplifier 接收通路
+				backup_owner = _backup_in_use_by()
+				if devices.device_backup and inf_level == 3 and backup_owner is None and not _process_alive("rs_sig_amplifier"):
+					if _start_process("rs_sig_amplifier", devices.device_backup, current_site):
+						_log(logging.INFO, f"Started rs_sig_amplifier on backup device: {devices.device_backup}")
 
 				# 未解出也未收到ROS指令时的自动切换逻辑
 				if not ros_level_applied:

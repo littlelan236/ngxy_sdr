@@ -11,8 +11,15 @@ def _generate_payload_random():
     """生成字典形式的payload {cmd_name:{xx:xx}} 数据为随机值"""
     output = {}
     for cmd_name, fields in SERIAL_FIELDS.items():
-            config = {field_name: random.randint(0, (1 << (len * 8)) - 1) for field_name, len in fields}
-            output[cmd_name] = config
+        config = {}
+        for field_name, field_size in fields:
+            if field_name == "key":
+                config[field_name] = "".join(random.choices("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", k=field_size))
+            elif field_size == 1:
+                config[field_name] = random.randint(0, 0xFF)
+            else:
+                config[field_name] = random.randint(1000, 2000)
+        output[cmd_name] = config
     return output
 
 def _encode_payload(cmd_option, payload):

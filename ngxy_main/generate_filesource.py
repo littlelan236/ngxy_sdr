@@ -9,9 +9,9 @@ if __name__ == "__main__":
     server_tx = zmqServerTx() # port 2235
 
     # 生成空口帧的比特流
-    frames = build_frame_ota_jamming("NGXYNB")
+    frames = build_frame_ota_jamming("AvipWR")
     print(frames)
     print(frames.dtype)
     # 文件名
-    filename = "interfere_NGXYNB"
+    filename = "interfere_AvipWR"
     frames = np.tile(frames, 1000).flatten().tofile(filename) # 重复信息防止信息过短导致射频信号质量低

@@ -22,14 +22,16 @@ if __name__ == "__main__":
 
 
     server_tx = zmqServerTx(address="tcp://127.0.0.1:2234") # port 2234
-    # decoder = frame_decoder_zmq("signal", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2236", crc16_enabled=False) # port 2236
-    decoder = frame_decoder_zmq("key", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2236") # port 2236
+    decoder = frame_decoder_zmq("signal", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2236") # port 2236
+    # decoder = frame_decoder_zmq("key", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2236") # port 2236
 
 
     # 生成空口帧的比特流
     # frames = build_frame_ota_jamming("RM2025")
     frames = build_frame_ota_signal(_generate_payload_random())
+    print(len(frames))
 
     while True:
         server_tx.send_data(frames)
+        frames = build_frame_ota_signal(_generate_payload_random())
     
