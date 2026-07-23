@@ -33,6 +33,7 @@ class frame_decoder_zmq:
         zmq_buffer_size = 500, # 理论上0.25秒的数据会占满500bytes
         zmq_read_data_interval = 0.001, # 从tcp buffer读取新数据的时间间隔
         on_frame_decoded = None, # 成功解析帧后的回调函数，参数为data_dict_list
+        emit_max_fps: float | None = None, # 回调发送频率上限，None表示不限制
     ):
         # 比特流缓冲区
         self._buffer_bits = np.array([], dtype=np.uint8)
@@ -46,6 +47,9 @@ class frame_decoder_zmq:
         self._len_history_bits = len_history_bits
         self._len_history_payload = len_history_payload
         self._on_frame_decoded = on_frame_decoded # 成功解析帧后的回调函数
+        self._emit_max_fps = emit_max_fps
+        self._min_emit_interval = 1.0 / emit_max_fps if emit_max_fps and emit_max_fps > 0 else None
+        self._last_emit_time = 0.0
 
         self._zmq_server = None
         self._worker_thread = None
@@ -126,7 +130,10 @@ class frame_decoder_zmq:
 
         if data_dict_list and self._on_frame_decoded:
             try:
-                self._on_frame_decoded(data_dict_list)
+                now = time.time()
+                if self._min_emit_interval is None or self._type != "jamming" or now - self._last_emit_time >= self._min_emit_interval:
+                    self._last_emit_time = now
+                    self._on_frame_decoded(data_dict_list)
             except Exception as e:
                 logging.log(logging.WARNING, f"[frame_decoder] callback error: {e}")
 

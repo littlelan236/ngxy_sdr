@@ -32,4 +32,5 @@ if __name__ == "__main__":
 
     while True:
         server_tx.send_data(frames)
+        frames = build_frame_ota_signal(_generate_payload_random())
     

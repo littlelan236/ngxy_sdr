@@ -26,14 +26,15 @@ from PyQt5 import Qt
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
+from gnuradio import iio
 from gnuradio import zeromq
-import filesource_rx_epy_block_0_0 as epy_block_0_0  # embedded python block
 import sip
 import threading
+import with_interfere_keyside_epy_block_0_0 as epy_block_0_0  # embedded python block
 
 
 
-class filesource_rx(gr.top_block, Qt.QWidget):
+class with_interfere_keyside(gr.top_block, Qt.QWidget):
 
     def __init__(self):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
@@ -56,7 +57,7 @@ class filesource_rx(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "filesource_rx")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "with_interfere_keyside")
 
         try:
             geometry = self.settings.value("geometry")
@@ -77,6 +78,7 @@ class filesource_rx(gr.top_block, Qt.QWidget):
         self.sensitivity_inf_3 = sensitivity_inf_3 = 0.6466
         self.sensitivity_inf_2 = sensitivity_inf_2 = 2.5809
         self.sensitivity_inf_1 = sensitivity_inf_1 = 2.8323
+        self.samp_rate_0 = samp_rate_0 = 1000000
         self.fc_blue_3 = fc_blue_3 = 434320000
         self.fc_blue_2 = fc_blue_2 = 434620000
         self.fc_blue_1 = fc_blue_1 = 434920000
@@ -90,58 +92,7 @@ class filesource_rx(gr.top_block, Qt.QWidget):
         # Blocks
         ##################################################
 
-        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2236', 100, False, (-1), '', True, True)
-        self.qtgui_time_sink_x_0_0_0_1_0_0 = qtgui.time_sink_c(
-            1024, #size
-            samp_rate, #samp_rate
-            'r', #name
-            1, #number of inputs
-            None # parent
-        )
-        self.qtgui_time_sink_x_0_0_0_1_0_0.set_update_time(0.10)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.set_y_axis(-1, 1)
-
-        self.qtgui_time_sink_x_0_0_0_1_0_0.set_y_label('Amplitude', "")
-
-        self.qtgui_time_sink_x_0_0_0_1_0_0.enable_tags(True)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, qtgui.TRIG_SLOPE_POS, 0.0, 0, 0, "")
-        self.qtgui_time_sink_x_0_0_0_1_0_0.enable_autoscale(True)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.enable_grid(False)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.enable_axis_labels(True)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.enable_control_panel(True)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.enable_stem_plot(False)
-
-
-        labels = ['Signal 1', 'Signal 2', 'Signal 3', 'Signal 4', 'Signal 5',
-            'Signal 6', 'Signal 7', 'Signal 8', 'Signal 9', 'Signal 10']
-        widths = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        colors = ['blue', 'red', 'green', 'black', 'cyan',
-            'magenta', 'yellow', 'dark red', 'dark green', 'dark blue']
-        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.0, 1.0, 1.0]
-        styles = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        markers = [-1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1]
-
-
-        for i in range(2):
-            if len(labels[i]) == 0:
-                if (i % 2 == 0):
-                    self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_label(i, "Re{{Data {0}}}".format(i/2))
-                else:
-                    self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_label(i, "Im{{Data {0}}}".format(i/2))
-            else:
-                self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_label(i, labels[i])
-            self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_width(i, widths[i])
-            self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_color(i, colors[i])
-            self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_style(i, styles[i])
-            self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_marker(i, markers[i])
-            self.qtgui_time_sink_x_0_0_0_1_0_0.set_line_alpha(i, alphas[i])
-
-        self._qtgui_time_sink_x_0_0_0_1_0_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0_0_0_1_0_0.qwidget(), Qt.QWidget)
-        self.top_layout.addWidget(self._qtgui_time_sink_x_0_0_0_1_0_0_win)
+        self.zeromq_pub_sink_0_0 = zeromq.pub_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:2239', 100, False, (-1), '', True, True)
         self.qtgui_time_sink_x_0_0_0_1_0 = qtgui.time_sink_f(
             1024, #size
             samp_rate, #samp_rate
@@ -299,11 +250,11 @@ class filesource_rx(gr.top_block, Qt.QWidget):
         self.qtgui_freq_sink_x_0.set_y_axis((-100), (-30))
         self.qtgui_freq_sink_x_0.set_y_label('Relative Gain', 'dB')
         self.qtgui_freq_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, 0.0, 0, "")
-        self.qtgui_freq_sink_x_0.enable_autoscale(True)
+        self.qtgui_freq_sink_x_0.enable_autoscale(False)
         self.qtgui_freq_sink_x_0.enable_grid(False)
         self.qtgui_freq_sink_x_0.set_fft_average(1.0)
         self.qtgui_freq_sink_x_0.enable_axis_labels(True)
-        self.qtgui_freq_sink_x_0.enable_control_panel(True)
+        self.qtgui_freq_sink_x_0.enable_control_panel(False)
         self.qtgui_freq_sink_x_0.set_fft_window_normalized(False)
 
 
@@ -328,6 +279,23 @@ class filesource_rx(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.7' if '192.168.2.7' else iio.get_pluto_uri(), [True, True], 32768)
+        self.iio_pluto_source_0.set_len_tag_key('packet_len')
+        self.iio_pluto_source_0.set_frequency(fc_1)
+        self.iio_pluto_source_0.set_samplerate(samp_rate)
+        self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
+        self.iio_pluto_source_0.set_gain(0, 64)
+        self.iio_pluto_source_0.set_quadrature(True)
+        self.iio_pluto_source_0.set_rfdc(True)
+        self.iio_pluto_source_0.set_bbdc(True)
+        self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
+        self.iio_pluto_sink_0_0 = iio.fmcomms2_sink_fc32('192.168.2.7' if '192.168.2.7' else iio.get_pluto_uri(), [True, True], 3276800, True)
+        self.iio_pluto_sink_0_0.set_len_tag_key('')
+        self.iio_pluto_sink_0_0.set_bandwidth(samp_rate)
+        self.iio_pluto_sink_0_0.set_frequency(fc_1)
+        self.iio_pluto_sink_0_0.set_samplerate(samp_rate)
+        self.iio_pluto_sink_0_0.set_attenuation(0, 0)
+        self.iio_pluto_sink_0_0.set_filter_params('Auto', '', 0, 0)
         self.fft_filter_xxx_1_0 = filter.fft_filter_fff(1, taps_lpf, 1)
         self.fft_filter_xxx_1_0.declare_sample_delay(0)
         self.epy_block_0_0 = epy_block_0_0.blk()
@@ -343,10 +311,17 @@ class filesource_rx(gr.top_block, Qt.QWidget):
             digital.IR_MMSE_8TAP,
             128,
             [])
-        self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
+        self.digital_gfsk_mod_0_0 = digital.gfsk_mod(
+            samples_per_symbol=52,
+            sensitivity=sensitivity_inf_1,
+            bt=0.35,
+            verbose=False,
+            log=False,
+            do_unpack=True)
         self.blocks_pack_k_bits_bb_0_0_1 = blocks.pack_k_bits_bb(8)
+        self.blocks_pack_k_bits_bb_0_0_0 = blocks.pack_k_bits_bb(8)
         self.blocks_float_to_char_0 = blocks.float_to_char(1, 1)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'C:\\Users\\wangt\\Desktop\\rec\\rx_inf_3.iq', True, 0, 0)
+        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_char*1, 'C:\\Users\\wangt\\Desktop\\rec\\interfere_NGXYNB', True, 0, 0)
         self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
         self.analog_quadrature_demod_cf_0_0 = analog.quadrature_demod_cf((1 / 1.5))
         self.analog_quadrature_demod_cf_0 = analog.quadrature_demod_cf((1 / 1.5))
@@ -358,24 +333,25 @@ class filesource_rx(gr.top_block, Qt.QWidget):
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.fft_filter_xxx_1_0, 0))
         self.connect((self.analog_quadrature_demod_cf_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 1))
         self.connect((self.analog_quadrature_demod_cf_0_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0, 0))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_throttle2_0, 0))
+        self.connect((self.blocks_file_source_0, 0), (self.blocks_pack_k_bits_bb_0_0_0, 0))
         self.connect((self.blocks_float_to_char_0, 0), (self.blocks_pack_k_bits_bb_0_0_1, 0))
+        self.connect((self.blocks_pack_k_bits_bb_0_0_0, 0), (self.digital_gfsk_mod_0_0, 0))
         self.connect((self.blocks_pack_k_bits_bb_0_0_1, 0), (self.zeromq_pub_sink_0_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.analog_quadrature_demod_cf_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_freq_sink_x_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_freq_sink_x_0, 1))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_time_sink_x_0_0_0_1_0_0, 0))
+        self.connect((self.digital_gfsk_mod_0_0, 0), (self.iio_pluto_sink_0_0, 0))
         self.connect((self.digital_symbol_sync_xx_0, 0), (self.epy_block_0_0, 0))
         self.connect((self.digital_symbol_sync_xx_0, 0), (self.qtgui_time_sink_x_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.blocks_float_to_char_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.qtgui_time_sink_x_0, 1))
         self.connect((self.fft_filter_xxx_1_0, 0), (self.digital_symbol_sync_xx_0, 0))
         self.connect((self.fft_filter_xxx_1_0, 0), (self.qtgui_time_sink_x_0_0_0_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.analog_quadrature_demod_cf_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 1))
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "filesource_rx")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "with_interfere_keyside")
         self.settings.setValue("geometry", self.saveGeometry())
         self.stop()
         self.wait()
@@ -389,12 +365,13 @@ class filesource_rx(gr.top_block, Qt.QWidget):
         self.samp_rate = samp_rate
         self.set_taps_lpf(firdes.low_pass(1.0, self.samp_rate, 19230, 2000))
         self.set_taps_lpf_pre(firdes.low_pass(1.0, self.samp_rate, 270000, 10000))
-        self.blocks_throttle2_0.set_sample_rate(self.samp_rate)
+        self.iio_pluto_sink_0_0.set_bandwidth(self.samp_rate)
+        self.iio_pluto_sink_0_0.set_samplerate(self.samp_rate)
+        self.iio_pluto_source_0.set_samplerate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0_0_0.set_samp_rate(self.samp_rate)
         self.qtgui_time_sink_x_0_0_0_1_0.set_samp_rate(self.samp_rate)
-        self.qtgui_time_sink_x_0_0_0_1_0_0.set_samp_rate(self.samp_rate)
 
     def get_taps_lpf_pre(self):
         return self.taps_lpf_pre
@@ -439,6 +416,12 @@ class filesource_rx(gr.top_block, Qt.QWidget):
     def set_sensitivity_inf_1(self, sensitivity_inf_1):
         self.sensitivity_inf_1 = sensitivity_inf_1
 
+    def get_samp_rate_0(self):
+        return self.samp_rate_0
+
+    def set_samp_rate_0(self, samp_rate_0):
+        self.samp_rate_0 = samp_rate_0
+
     def get_fc_blue_3(self):
         return self.fc_blue_3
 
@@ -480,6 +463,8 @@ class filesource_rx(gr.top_block, Qt.QWidget):
 
     def set_fc_1(self, fc_1):
         self.fc_1 = fc_1
+        self.iio_pluto_sink_0_0.set_frequency(self.fc_1)
+        self.iio_pluto_source_0.set_frequency(self.fc_1)
 
     def get_fc(self):
         return self.fc
@@ -490,7 +475,7 @@ class filesource_rx(gr.top_block, Qt.QWidget):
 
 
 
-def main(top_block_cls=filesource_rx, options=None):
+def main(top_block_cls=with_interfere_keyside, options=None):
 
     qapp = Qt.QApplication(sys.argv)
 

@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# amplifier: 给原本用作backup的板子接上amplifier，当backup空闲且当前等级已经为三级时，使用amplifier支路尝试进行解析
+# 为了避免潜在的串口通信问题，每次检验Queue中重复信息，重复信息直接丢弃
+
 # 选项
 RECORD_SIGNAL_ON = True
 
 # 参数
 NUM_SAMPS = 4e4
 TIMEOUT_DEVICE_SEARCH = 15
-INTERVAL_MAIN_CYCLE = 0.005
+INTERVAL_MAIN_CYCLE = 0.02
 TIMEOUT_ROS_FACTION_QUERY = 10000 # 不主动搜索阵营
 # TIMEOUT_ROS_FACTION_QUERY = 3
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
 TIMEOUT_FACTION_SHARCH = 5
 # TIMEOUT_FACTION_SHARCH = 10000 # always red
 # TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
-TIMEOUT_INF_LEVEL = 20
+# TIMEOUT_INF_LEVEL = 20
+TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
 # keep lv1时 剩余时间与基地血量的升级条件
@@ -22,6 +26,7 @@ THRES_REMAINING_TIME_SEC = 120
 THRES_BASE_HP = 2000
 KEEP_LV1_ON = False
 
+SEND_KEY_MAX_FPS = 1
 ZMQ_ADDR_SIG = "tcp://127.0.0.1:2236"
 ZMQ_ADDR_INF = "tcp://127.0.0.1:2235"
 
@@ -232,12 +237,17 @@ def main(
 	for device in (devices.device_sig, devices.device_inf, devices.device_backup):
 		if device:
 			error_counts.setdefault(device, 0)
+	# 已为三级干扰的标志
+	is_level_3 = False
 
 	def _should_stop() -> bool:
 		return stop_event is not None and stop_event.is_set()
 
 	def _on_ros_encrypt_level_change(new_level: int) -> None:
 		ros_level_queue.put(new_level)
+		if new_level == 3:
+			nonlocal is_level_3
+			is_level_3 = True
 
 	def _record_device_error(device: str | None) -> None:
 		if not device:
@@ -338,11 +348,13 @@ def main(
 			decoder = decoder_objects.get(name)
 			if decoder is not None:
 				return
+			emit_max_fps = SEND_KEY_MAX_FPS if decoder_type == "jamming" else None
 			decoder_objects[name] = frame_decoder_zmq(
 				type=decoder_type,
 				zmq_address=zmq_addr,
 				on_frame_decoded=_build_decoder_callback(name, decoder_type, KEEP_LV1_ON),
 				crc16_enabled=True,
+				emit_max_fps=emit_max_fps,
 			)
 			_log(logging.INFO, f"Started {name} [{decoder_type}] decoder thread with ZMQ address {zmq_addr}")
 
@@ -350,7 +362,7 @@ def main(
 		if _should_stop():
 			return False
 		_stop_process(name)
-		if name == "rx_sig":
+		if name in ("rx_sig", "rs_sig_amplifier"):
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_sig_config(device_serial, site)
 		else:
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_inf_config(level, device_serial, site)
@@ -609,6 +621,12 @@ def main(
 							_start_process("rx_inf", main_device_map.get(name), current_site, inf_level)
 						else:
 							_start_process("rx_sig", main_device_map.get(name), current_site)
+
+				# 当干扰等级达到三级且 backup 空闲时，启动额外的 rs_sig_amplifier 接收通路
+				backup_owner = _backup_in_use_by()
+				if devices.device_backup and inf_level == 3 and backup_owner is None and not _process_alive("rs_sig_amplifier"):
+					if _start_process("rs_sig_amplifier", devices.device_backup, current_site):
+						_log(logging.INFO, f"Started rs_sig_amplifier on backup device: {devices.device_backup}")
 
 				# 未解出也未收到ROS指令时的自动切换逻辑
 				if not ros_level_applied:
