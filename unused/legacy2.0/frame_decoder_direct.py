@@ -6,7 +6,7 @@ from typing import Iterable
 import numpy as np
 
 from crc import verify_crc16_check_sum, verify_crc8_check_sum
-from def_frame import (
+from ngxy_main.defs.def_frame import (
     ACCESS_CODE_JAMMING,
     ACCESS_CODE_SIGNAL,
     ACCESS_CORR_JAMMING,

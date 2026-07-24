@@ -37,10 +37,10 @@ if str(CURRENT_DIR) not in sys.path:
 from pluto_ctrl import pluto_ctrl_rx, rtl_sdr_ctrl
 from fftfilter import apply_fft_filter
 from frame_decoder_direct import frame_decoder_direct
-from def_status import dict_to_dataclass
+from ngxy_main.defs.def_status import dict_to_dataclass
 from quadrate_discriminator import QuadratureDiscriminator, QuadratureDiscriminatorConfig
 from symbol_sync import MMSymbolSynchronizer, MMSymbolSyncConfig, bpsk_bits_from_symbols
-from def_taps import TAPS_LPF_PRE, TAPS_LPF
+from ngxy_main.defs.def_taps import TAPS_LPF_PRE, TAPS_LPF
 
 try:
 	from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded
@@ -279,7 +279,7 @@ class SimSigType(Enum):
 	INF1_PATH = "/home/ubuntu/radar2026/radio26/inf1.iq"
 	INF2_PATH = "/home/ubuntu/radar2026/radio26/inf2.iq"
 
-from def_signal import *
+from ngxy_main.defs.def_signal import *
 # 模拟发送的iq信号配置 在本程序中仅支持发送信号源 使用device_sig
 tx_config = SigTxConfig(
 	center_freq=FC_RED,

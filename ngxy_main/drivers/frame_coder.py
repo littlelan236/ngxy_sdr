@@ -1,9 +1,9 @@
 import numpy as np
 import random
 
-from crc import append_crc8_check_sum, append_crc16_check_sum, verify_crc8_check_sum, verify_crc16_check_sum
-from util import print_hex_by_byte, _reverse_string
-from def_frame import (CMD_OPTIONS, SERIAL_FIELDS, SOF, ACCESS_CODE_SIGNAL, ACCESS_CODE_JAMMING,
+from ngxy_main.drivers.crc import append_crc8_check_sum, append_crc16_check_sum, verify_crc8_check_sum, verify_crc16_check_sum
+from ngxy_main.drivers.util import print_hex_by_byte, _reverse_string
+from ngxy_main.defs.def_frame import (CMD_OPTIONS, SERIAL_FIELDS, SOF, ACCESS_CODE_SIGNAL, ACCESS_CODE_JAMMING,
                        LEN_OTA_PAYLOAD, ENDIAN, ENDIAN_DATA, ENDIAN_OTA,
                        LEN_SOF, LEN_CMD_ID, LEN_DATA_LENGTH, LEN_SEQ, LEN_ACCESS, LEN_OTA_LENGTH)
 
@@ -146,7 +146,7 @@ def build_frame_ota_jamming(key:str, num_bytes_fill=200, seq=0) -> np.ndarray[np
 
 # 测试代码
 if __name__ == "__main__":
-    from util import print_hex_by_byte
+    from ngxy_main.drivers.util import print_hex_by_byte
 
     # for f in frames:
     #     print("------------")

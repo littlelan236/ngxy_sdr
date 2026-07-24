@@ -19,14 +19,14 @@ import sys
 import signal
 from gnuradio import iio
 from gnuradio import zeromq
-import region_games_epy_block_0_0 as epy_block_0_0  # embedded python block
+import grc_hard_decision_block as epy_block_0_0  # embedded python block
 import multiprocessing
 import threading
 import logging
 import os
 import re
 import select
-from util import _log, _makesure_path_exist
+from ngxy_main.drivers.util import _log, _makesure_path_exist
 
 class region_games(gr.top_block):
     """内置gnuradio控制线程 将比特流zmq发送至端口
@@ -324,8 +324,8 @@ class top_thread_wrapper():
         return self.process is not None and self.process.is_alive()
 
 if __name__ == '__main__':
-    from def_signal import *
-    from def_taps import *
+    from ngxy_main.defs.def_signal import *
+    from ngxy_main.defs.def_taps import *
     from time import sleep, time
 
     filename = f"rec/{time()}test_rec"

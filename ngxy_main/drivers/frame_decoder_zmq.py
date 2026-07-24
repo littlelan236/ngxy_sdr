@@ -6,14 +6,14 @@
 然后解析OTA frame和串口协议帧
 返回解析出的信息的dict 后续可改成接口的格式
 """
-from crc import verify_crc16_check_sum, verify_crc8_check_sum
-from zmq_server import zmqServerRx
+from ngxy_main.drivers.crc import verify_crc16_check_sum, verify_crc8_check_sum
+from ngxy_main.drivers.zmq_server import zmqServerRx
 import numpy as np
-from util import print_hex_by_byte, _reverse_string
+from ngxy_main.drivers.util import print_hex_by_byte, _reverse_string
 import logging
 import time
 import threading
-from def_frame import *
+from ngxy_main.defs.def_frame import *
 
 LEN_HEADER = LEN_SOF + LEN_DATA_LENGTH + LEN_SEQ + 1
 ACCESS_JAMMING_NPARRAY_BITS = np.unpackbits(np.frombuffer(ACCESS_CODE_JAMMING.to_bytes(8, ENDIAN_OTA), dtype=np.uint8))
@@ -318,8 +318,8 @@ class frame_decoder_zmq:
 
 
 if __name__ == "__main__": # 测试代码
-    from frame_coder import build_frame_ota_jamming, build_frame_ota_signal, _generate_payload_random
-    from util import print_hex_by_byte
+    from ngxy_main.drivers.frame_coder import build_frame_ota_jamming, build_frame_ota_signal, _generate_payload_random
+    from ngxy_main.drivers.util import print_hex_by_byte
 
     # frames = build_frame_ota_jamming("RM2026")
 

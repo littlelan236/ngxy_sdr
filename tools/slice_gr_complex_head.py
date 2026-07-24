@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut the first N gr_complex samples from a GNU Radio file source binary file."""
+"""IQ文件切片工具"""
 
 from __future__ import annotations
 

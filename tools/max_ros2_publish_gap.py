@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 统计日志中两条 hero_x 类型 ROS2 发布消息之间的最大时间间隔
 import argparse
 import datetime as dt
 import re

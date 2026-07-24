@@ -41,7 +41,7 @@ class DeviceConfig:
 	device_inf_addr: str | None
 	device_backup_addr: str | None
 
-from extract_usb import *
+from ngxy_main.drivers.extract_usb import *
 device_conf = DeviceConfig(
 	device_sig=SERIAL_PLUTO_NANO_2,
 	device_inf=SERIAL_PLUTO_NANO_1,	
@@ -91,21 +91,21 @@ import time
 import threading
 from queue import Queue, Empty
 import logging
-from util import _log, _makesure_path_exist
+from ngxy_main.drivers.util import _log, _makesure_path_exist
 
 import rclpy
 
-from def_signal import *
+from ngxy_main.defs.def_signal import *
 BW_SIG /= 2
 BW_1 /= 2
 BW_2 /= 2
 BW_3 /= 2
-from def_taps import *
-import region_games
-from frame_decoder_zmq import frame_decoder_zmq
+from ngxy_main.defs.def_taps import *
+import ngxy_main.grc_main as grc_main
+from ngxy_main.drivers.frame_decoder_zmq import frame_decoder_zmq
 from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
 
-region_games.VISUALIZE_ON = False
+grc_main.VISUALIZE_ON = False
 
 
 def _json_default(value):
@@ -379,7 +379,7 @@ def main(
 			filename = f"rec/{name}_{center_freq}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.iq"
 
 		def _launch_with_addr(addr: str):
-			wrapper = region_games.top_thread_wrapper(
+			wrapper = grc_main.top_thread_wrapper(
 				zmq_addr,
 				addr,
 				center_freq,

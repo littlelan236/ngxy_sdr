@@ -1,11 +1,11 @@
 if __name__ == "__main__":
 
-    from frame_coder import build_frame_ota_jamming, build_frame_ota_signal, _generate_payload_random
-    from zmq_server import  zmqServerTx
-    from frame_decoder_zmq import frame_decoder_zmq
+    from ngxy_main.drivers.frame_coder import build_frame_ota_jamming, build_frame_ota_signal, _generate_payload_random
+    from ngxy_main.drivers.zmq_server import  zmqServerTx
+    from ngxy_main.drivers.frame_decoder_zmq import frame_decoder_zmq
     import logging
     from datetime import datetime
-    from def_status import *
+    from ngxy_main.defs.def_status import *
 
     TIME_STR = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     LOG_FILE_PATH = f"./log_sdr_{TIME_STR}.log"

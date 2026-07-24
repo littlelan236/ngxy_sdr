@@ -5,7 +5,7 @@ import threading
 import json
 import dataclasses
 import logging
-from def_status import dict_to_dataclass, BaseStatus
+from ngxy_main.defs.def_status import dict_to_dataclass, BaseStatus
 
 class zmqServerTx:
     """
