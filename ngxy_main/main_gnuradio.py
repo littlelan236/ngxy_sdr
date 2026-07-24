@@ -73,7 +73,6 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 if str(WORKSPACE_ROOT) not in sys.path:
 	sys.path.insert(0, str(WORKSPACE_ROOT))
 
-import argparse
 from enum import Enum
 import json
 import time
@@ -180,10 +179,6 @@ def query_device_addr(device: str, force_refresh: bool = False) -> str | None:
 	return usb_name
 
 
-def build_arg_parser() -> argparse.ArgumentParser:
-	parser = argparse.ArgumentParser()
-	return parser
-
 def main(
 	devices: DeviceConfig,
 	main_cycle_update_interval=INTERVAL_MAIN_CYCLE,
@@ -215,17 +210,12 @@ def main(
 	for device in (devices.device_sig, devices.device_inf, devices.device_backup):
 		if device:
 			error_counts.setdefault(device, 0)
-	# 已为三级干扰的标志
-	is_level_3 = False
 
 	def _should_stop() -> bool:
 		return stop_event is not None and stop_event.is_set()
 
 	def _on_ros_encrypt_level_change(new_level: int) -> None:
 		ros_level_queue.put(new_level)
-		if new_level == 3:
-			nonlocal is_level_3
-			is_level_3 = True
 
 	def _record_device_error(device: str | None) -> None:
 		if not device:
@@ -456,29 +446,17 @@ def main(
 				break
 
 			# 发布ROS信息
-			if ros_node is not None:
-				# print("====================================")
-				# print(ros_publish_queue.qsize())
-				try:
-					while True:
-						data_dict = ros_publish_queue.get_nowait()
-						_publish_ros_messages(ros_node, data_dict)
-				except Empty:
-					pass
-			else:
-				try:
-					while True:
-						ros_publish_queue.get_nowait()
-				except Empty:
-					pass
-			
+			try:
+				while True:
+					data_dict = ros_publish_queue.get_nowait()
+					_publish_ros_messages(ros_node, data_dict)
+			except Empty:
+				pass
+
 			# ROS切换干扰等级逻辑 不受INTERVAL_DEVICE_CTRL的控制
-			ros_level_applied = False
 			try:
 				while True:
 					new_level = ros_level_queue.get_nowait()
-					# print("====================================")
-					# print(f"Received new encrypt level from ROS: {new_level}")
 					if new_level in (1, 2, 3) and new_level != inf_level:
 						stopped = _ensure_process_stopped("rx_inf")
 						if stopped:
@@ -488,7 +466,6 @@ def main(
 							_start_process("rx_inf", inf_device, current_site, inf_level)
 							with status_lock:
 								last_decode_time["rx_inf"] = time.time()
-							ros_level_applied = True
 							_log(logging.INFO, f"rx_inf switched to level {inf_level} due to ROS command")
 			except Empty:
 				pass
@@ -499,9 +476,6 @@ def main(
 					# 查看当前进程是否存活，存活则继续使用当前设备；不存活则记录错误并尝试切换设备
 					if _process_alive(name):
 						continue
-					# 进程不存活
-					# print("============================")
-					# print(f"{name}dead")
 					with status_lock:
 						current_device = process_devices.get(name)
 					_record_device_error(current_device)

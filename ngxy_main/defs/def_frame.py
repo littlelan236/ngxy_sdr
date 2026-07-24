@@ -98,6 +98,11 @@ SERIAL_FIELDS = {
         ("sentry_defense_debuff", 1),
         ("sentry_attack_boost", 2),
         ("sentry_posture", 1),
+        ("hero_major", 1),
+        ("engineer_major", 1),
+        ("infantry_3_major", 1),
+        ("infantry_4_major", 1),
+        ("sentry_major", 1),
     ],
     "jamming": [
         ("key", 6),

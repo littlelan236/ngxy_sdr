@@ -133,11 +133,21 @@ class EnemyBuffStatus(BaseStatus):
         vulnerability_buff: int = -1
         attack_buff: int = -1
 
+    @dataclass
+    class EnemyMajorStatus(BaseStatus):
+        enemy_hero: int
+        enemy_engineer: int
+        enemy_infantry_3: int
+        enemy_infantry_4: int
+        enemy_sentry: int
+
+
     enemy_hero: Buff
     enemy_engineer: Buff
     enemy_infantry_3: Buff
     enemy_infantry_4: Buff
     enemy_sentry: Buff
+    major_status: EnemyMajorStatus
 
 
 @dataclass
@@ -151,11 +161,11 @@ class EnemyTeamStatus(BaseStatus):
     enemy_coin_total: int
     rfid_status: RFIDStatus
 
-
 # 『raw』data for forwarding only
 @dataclass
 class SerialRawData(BaseStatus):
     raw_data: bytes
+
 
 
 # EnemyBulletRaw = SerialRawData
@@ -251,7 +261,14 @@ def dict_to_dataclass(data_dict)-> BaseStatus | None:
                 defence_buff=data_dict["sentry_defense_boost"],
                 vulnerability_buff=data_dict["sentry_defense_debuff"],
                 attack_buff=data_dict["sentry_attack_boost"],
-            )
+            ),
+            major_status=EnemyBuffStatus.EnemyMajorStatus(
+                enemy_hero=data_dict["hero_major"],
+                enemy_engineer=data_dict["engineer_major"],
+                enemy_infantry_3=data_dict["infantry_3_major"],
+                enemy_infantry_4=data_dict["infantry_4_major"],
+                enemy_sentry=data_dict["sentry_major"],
+            ),
         )
     elif "key" in data_dict:
         return EnemyPasswordStatus(password=data_dict["key"])
