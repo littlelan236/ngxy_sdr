@@ -99,14 +99,6 @@ class frame_decoder_zmq:
             self._append_bits(np.unpackbits(data))
         logging.log(logging.DEBUG, f"[frame decoder] read data  current buffer_bits size {len(self._buffer_bits)}")
 
-    def push_bits(self, bits: np.ndarray | list | tuple) -> list[dict]:
-        """由外部接收链路直接推送bits并立即尝试解帧。"""
-
-        if self._bits_source != "direct":
-            raise RuntimeError("push_bits is only available when bits_source='direct'")
-
-        self._append_bits(bits)
-        return self._process_current_buffer()
 
     def _process_current_buffer(self) -> list[dict]:
         """从当前bits缓存中完成OTA帧与串口帧解析。"""

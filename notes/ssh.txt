@@ -1,0 +1,47 @@
+Microsoft Windows [版本 10.0.26100.6899]
+(c) Microsoft Corporation。保留所有权利。
+
+C:\Users\wangt>ssh lan236@172.20.10.2
+The authenticity of host '172.20.10.2 (172.20.10.2)' can't be established.
+ED25519 key fingerprint is SHA256:vptiQ4D/6peYQrKRTy65JWX7dTfOddrmJGfLpg8WLfc.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '172.20.10.2' (ED25519) to the list of known hosts.
+lan236@172.20.10.2's password:
+Linux lan236 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Fri Jun 19 13:31:12 2026 from 172.20.10.14
+
+
+--
+
+
+C:\Users\wangt>ssh lan236@172.20.10.2
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!
+It is also possible that a host key has just been changed.
+The fingerprint for the ED25519 key sent by the remote host is
+SHA256:c4AYJJVrMndo5PEQ+Dt9RRd2h1DRJA0K4yRypQRjgTk.
+Please contact your system administrator.
+Add correct host key in C:\\Users\\wangt/.ssh/known_hosts to get rid of this message.
+Offending ECDSA key in C:\\Users\\wangt/.ssh/known_hosts:10
+Host key for 172.20.10.2 has changed and you have requested strict checking.
+Host key verification failed.
+
+
+
+---
+解决方案
+
+ssh-keygen -R 172.20.10.2
+yes
+lan353

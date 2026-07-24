@@ -1,4 +1,6 @@
 if __name__ == "__main__":
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
     from ngxy_main.drivers.frame_coder import build_frame_ota_jamming, build_frame_ota_signal, _generate_payload_random
     from ngxy_main.drivers.zmq_server import  zmqServerTx
@@ -30,7 +32,12 @@ if __name__ == "__main__":
     frames = build_frame_ota_jamming("SYUJON")
     # frames = build_frame_ota_signal(_generate_payload_random())
 
+
     while True:
+        # key
         server_tx.send_data(frames)
-        frames = build_frame_ota_signal(_generate_payload_random())
+
+        # signal 每次发送后重新随机生成
+        # server_tx.send_data(frames)
+        # frames = build_frame_ota_signal(_generate_payload_random())
     

@@ -28,7 +28,7 @@ import re
 import select
 from ngxy_main.drivers.util import _log, _makesure_path_exist
 
-class region_games(gr.top_block):
+class grc_main_block(gr.top_block):
     """内置gnuradio控制线程 将比特流zmq发送至端口
     filename=None则关闭录制"""
 
@@ -162,7 +162,7 @@ class top():
           num_samps,
     ):
         try:
-            self.tb = region_games(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps)
+            self.tb = grc_main_block(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps)
             def sig_handler(sig=None, frame=None):
                 self.tb.stop()
                 self.tb.wait()

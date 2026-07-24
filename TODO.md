@@ -1,13 +1,15 @@
 # 重构：
 
+- 测通transmit test
+- 标注每个sdr的ip
+
 - 删除amplifier相关逻辑
-- 删除不必要文件和代码
-- 重新更改grc文件的组织结构 做一个命令行传参 只保留py文件
-- 将py文件组织到各个子文件夹中
+- 删除不必要的搜索逻辑
 - 更改通信接口
 - 重构注释
+- 规范化loggings与内录路径
 
 # backup features
 
-- amplifier
+- amplifier（低优先级）
 - keep lV1（低优先级）

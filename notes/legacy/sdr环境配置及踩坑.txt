@@ -1,0 +1,81 @@
+RTLSDR
+1，Pysdr中windows环境链接 照着做
+2，pip install pyrtlsdr
+3，https://blog.csdn.net/m0_53292003/article/details/132614696 https://ftp.osmocom.org/binaries/windows/rtl-sdr/下载驱动库
+
+
+Matlab+simulink+rtlsdr
+## 实际上根本没有用到matlab仿真
+0，不要再用14版的pdf书了，有些东西过时了，用21版的
+1，tb一个matlab教育版账号 官网登录并下载matlab25b
+2，matlab安装选择产品时：matlab simulink 还有书里提到的3个
+3，随书文档下载：点书里给的第一个链接下载
+// 这个如果是从官网下的软件就不会遇到 4，Matlab打开时遇到license checkout failed和license Manger Error8：参考https://blog.csdn.net/qq_43361801/article/details/144546051 将某个dll替换成破解包中的dll
+5，安装rtl-sdr的matlab/simulink支持 这一步书里的链接是失效的 https://blog.csdn.net/Xiao_Wu_classmate/article/details/127332434 需要tb一个正版账号 不然没法下载工具包 https://www.yuque.com/huangtangdeyang/kpo1a7/zrlymcae29o4x9yv?#
+
+
+## gnuradio + pluto 踩坑
+1，关掉杀毒软件 会把安装的gnu杀掉
+2，gnu的embedded python block：
+ - 使用这个的要单独建一个文件夹
+ - 用记事本打开 复制到vscode里面去 不然在vscode里打开，有的时候软件偷偷换了一个.py文件 更改就无效了
+  - 与numpy数据格式的换算： np.complex64 np.float32 np.int32(->int) np.int16(->short) np.int8(->byte)
+3, 有的时候接收端会失效（接收到的信号一直时I为大于零的某个值 Q一直为0）目前不知道是什么原因
+不要连续开始运行两个gnu流程图 点开tx后间隔一段时间再点开rx 可能能避免问题
+4，symbol sync模块不能直接把250k幅值的数据输进去 会崩 要先过个multiplier把数据的幅值弄小
+5，插Pluto的时候必须插边上的USB2.0
+6，莫名其妙重启、unable to create iio context、failed to set BB rate这种：是一路供电不足 需要再连一根线 //但是有的时候两根线会触发电脑外设电涌保护 这种时候反倒连一根线是对的
+7，不用每次连接pluto都串口登录一次系统 等电脑识别到“U盘”的时候就能直接代码用
+
+## gnuradio usb转网口 配置ip
+三四百块的国产pluto nano：
+ifconfig usb0 无效
+vi /etc/network/interfaces 修改配置 无效
+有效的方法：
+fw_setenv ipaddr 192.168.3.2
+
+
+如果pluto端修改成功 但是PC Ping不通：
+或ERROR: READ LINE: -32
+ERROR: No context at 192.168.2.4
+Scanning for IIO contexts failed: Not enough space (12)
+修改PC端 静态ip：
+- 打开“控制面板” → “网络和共享中心” → “更改适配器设置”。
+- 找到 USB 网络适配器（可能显示为“以太网”或“RNDIS”），右键 → “属性”。
+- 双击“Internet 协议版本 4 (TCP/IPv4)”。
+- 如果当前是“自动获得 IP 地址”，则说明 PC 尝试通过 DHCP 获取 IP，但设备侧没有 DHCP 服务器（除非你专门配置了）。这时应该改为“使用下面的 IP 地址”，手动设置：
+- IP 地址：192.168.3.100（或同网段的其他地址，不要与设备冲突）
+- 子网掩码：255.255.255.0
+
+## 原装plutosdr（有网线版）
+设置网线连接静态ip：
+vi /mnt/jffs2/autorun.sh
+
+#!/bin/sh
+# 删除可能冲突的 Avahi 备用地址
+ifconfig eth0:avahi 0.0.0.0 down
+# 配置 eth0 的静态 IP
+ifconfig eth0 192.168.1.100 netmask 255.255.255.0 up
+
+chmod +x /mnt/jffs2/autorun.sh
+reboot
+
+若通过这种方式配置 则不要将usb0的ip也配置到同一子网下！（192.168.3.x视为同意一子网）不然会冲突
+
+不要忘了改PC端的静态ip
+
+>>>> 一定要测试ping出来的ip到底是不是板子 ping到一半断开板子连接
+
+报 Unable to create buffer: -16：
+看看是不是pluto sink/source用了重复的ip 如两个sink填了重复的ip
+
+实际项目中踩坑
+1，MM lock 进行符号同步的时候 Constellation应该设置成BPSK的形式[-4, 4] 不能设置成[-4, -3, 3, 4] 会导致同步小概率不稳定
+2，tcp通信时 pluto速度远大于python速度 需要每隔约0.1s重置sub端连接 这样能丢弃所有阻塞的messages //但刷新时间设置过小会导致python中的缓冲区一直读不满而“卡住” --所以 设置为动态调整
+3，自定义的python块效率很低 不过好像主要是modulator积分慢 demodulator性能还行 这就是为什么仿真运行比实际上板快
+
+todesk
+
+pytorch
+1, 安装miniconda 添加到路径 --安装卡住：可能是关闭杀毒 可能是断网 不知道是哪个会解决
+2, conda中pip install pandas会失败 必须conda install pandas
