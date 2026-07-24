@@ -1,6 +1,11 @@
 # 信号参数设置
 
 from numpy import pi
+from enum import Enum
+
+class CurrentSite(Enum):
+    RED = 0
+    BLUE = 1
 
 SPS = 47.0
 SAMP_RATE = 1e6

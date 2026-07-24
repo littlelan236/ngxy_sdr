@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# amplifier: 给原本用作backup的板子接上amplifier，当backup空闲且当前等级已经为三级时，使用amplifier支路尝试进行解析
 # 为了避免潜在的串口通信问题，每次检验Queue中重复信息，重复信息直接丢弃
 
 # 选项
@@ -11,21 +10,11 @@ RECORD_SIGNAL_ON = True
 NUM_SAMPS = 4e4
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.02
-TIMEOUT_ROS_FACTION_QUERY = 10000 # 不主动搜索阵营
-# TIMEOUT_ROS_FACTION_QUERY = 3
+FACTION_QUERY_TIMEOUT = 5
+INTERVAL_FACTION_RETRY = 5
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
-TIMEOUT_FACTION_SHARCH = 5
-# TIMEOUT_FACTION_SHARCH = 10000 # always red
-# TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
-# TIMEOUT_INF_LEVEL = 20
-TIMEOUT_INF_LEVEL = 10000 # 不主动搜索干扰等级
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
-# keep lv1时 剩余时间与基地血量的升级条件
-THRES_REMAINING_TIME_SEC = 120
-THRES_BASE_HP = 2000
-KEEP_LV1_ON = False
-
 SEND_KEY_MAX_FPS = 1
 ZMQ_ADDR_SIG = "tcp://127.0.0.1:2236"
 ZMQ_ADDR_INF = "tcp://127.0.0.1:2235"
@@ -193,21 +182,11 @@ def query_device_addr(device: str, force_refresh: bool = False) -> str | None:
 
 def build_arg_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--keep-lv1", action=argparse.BooleanOptionalAction, default=False, help="保持一级不自动升级")
 	return parser
-
-
-def apply_cli_args(args: argparse.Namespace) -> None:
-	global KEEP_LV1_ON
-	KEEP_LV1_ON = bool(args.keep_lv1)
-	if KEEP_LV1_ON:
-		_log(logging.INFO, "Keeping level 1 for inf device as per CLI argument")
 
 def main(
 	devices: DeviceConfig,
-	inf_level_timeout=TIMEOUT_INF_LEVEL,
 	main_cycle_update_interval=INTERVAL_MAIN_CYCLE,
-	faction_timeout=TIMEOUT_ROS_FACTION_QUERY,
 	stop_event: threading.Event | None = None,
 	main_cycle_device_ctrl_interval=INTERVAL_MAIN_CYCLE_DEVICE_CTRL,
 ) -> None:
@@ -224,7 +203,6 @@ def main(
 	ros_level_queue: Queue[int] = Queue()
 	ros_publish_queue: Queue[dict] = Queue()
 	last_device_ctrl_time = 0.0
-	current_site: CurrentSite | None = None
 	ros_node = None
 	main_device_map = {
 		"rx_sig": devices.device_sig,
@@ -328,18 +306,16 @@ def main(
 			time.sleep(0.1)
 		return False
 
-	def _build_decoder_callback(name: str, decoder_type: str, keep_lv1_on):
+	def _build_decoder_callback(name: str, decoder_type: str):
 		def _on_frame_decoded(data_dict_list: list[dict]) -> None:
 			now = time.time()
 			with status_lock:
 				last_decode_time[name] = now
 				restart_attempted[name] = False
-			# 保持一级逻辑 若为干扰波解析器且_levelup_decicer返回False 则不进行上传
-			if decoder_type == "jamming" and not _levelup_decider(ros_node, keep_lv1_on):
-				pass
-			else:
-				for data_dict in data_dict_list:
-					ros_publish_queue.put(data_dict)
+			if decoder_type == "jamming" and inf_level == 3:
+				return
+			for data_dict in data_dict_list:
+				ros_publish_queue.put(data_dict)
 
 		return _on_frame_decoded
 
@@ -352,7 +328,7 @@ def main(
 			decoder_objects[name] = frame_decoder_zmq(
 				type=decoder_type,
 				zmq_address=zmq_addr,
-				on_frame_decoded=_build_decoder_callback(name, decoder_type, KEEP_LV1_ON),
+				on_frame_decoded=_build_decoder_callback(name, decoder_type),
 				crc16_enabled=True,
 				emit_max_fps=emit_max_fps,
 			)
@@ -362,7 +338,7 @@ def main(
 		if _should_stop():
 			return False
 		_stop_process(name)
-		if name in ("rx_sig", "rs_sig_amplifier"):
+		if name == "rx_sig":
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_sig_config(device_serial, site)
 		else:
 			device_serial, center_freq, bandwidth, taps_pre, zmq_addr = _build_inf_config(level, device_serial, site)
@@ -418,20 +394,6 @@ def main(
 			restart_attempted.setdefault(name, False)
 		return True
 
-	def _wait_for_decode_or_process_dead(worker_name: str, timeout_sec: float) -> bool:
-		start_time = time.time()
-		while time.time() - start_time < timeout_sec:
-			if _should_stop():
-				return False, None
-			with status_lock:
-				last_time = last_decode_time.get(worker_name, 0.0)
-			if last_time >= start_time:
-				return True, None
-			if not _process_alive(worker_name):
-				return False, "err"
-			time.sleep(0.05)
-		return False, None
-
 	def _get_faction_with_timeout(node: WirelessRos2AdaptorNodeThreaded, timeout_sec: float) -> Faction | None:
 		start_time = time.time()
 		faction = None
@@ -441,92 +403,39 @@ def main(
 				return faction
 		return faction
 
-	def _probe_faction_site(site: CurrentSite) -> CurrentSite | None:
-		primary_device = devices.device_inf
-		backup_device = devices.device_backup if devices.device_backup and devices.device_backup != primary_device else None
-		_log(logging.INFO, f"Probing faction candidate: {site.name} (primary={primary_device}, backup={backup_device})")
-
-		if not _start_process("rx_inf", primary_device, site):
-			_record_device_error(primary_device)
-			if backup_device is not None and _start_process("rx_inf", backup_device, site, level=1):
-				_log(logging.INFO, f"Primary device {primary_device} produced err, switching to backup device {backup_device}")
-				decoded, err = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
-				_ensure_process_stopped("rx_inf")
-				if decoded:
-					return site
-				_record_device_error(backup_device)
-			return None
-
-		decoded, err = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
-		stopped = _ensure_process_stopped("rx_inf")
-		if decoded:
-			return site
-		if not stopped:
-			_log(logging.WARNING, f"rx_inf did not stop cleanly; retrying probe for {site.name}")
-
-		if backup_device is not None and err:
-			_log(logging.INFO, f"Primary device {primary_device} produced err, switching to backup device {backup_device}")
-			if _start_process("rx_inf", backup_device, site, level=1):
-				decoded, err = _wait_for_decode_or_process_dead("rx_inf", TIMEOUT_FACTION_SHARCH)
-				_ensure_process_stopped("rx_inf")
-				if decoded:
-					return site
-				_record_device_error(backup_device)
-		return None
-	
-	def _levelup_decider(ros_node: WirelessRos2AdaptorNodeThreaded, keep_lv1_on) -> bool:
-		"""根据KEEP_LV1_ON和ROS查询得到的剩余时间与基地血量决定是否升级"""
-		if keep_lv1_on:
-			if ros_node.get_remaining_seconds() > THRES_REMAINING_TIME_SEC and ros_node.get_alley_base_HP() > THRES_BASE_HP:
-				return True
-			return False
-		else:  # 不开启升级
-			return True
-
 	# ----------------------------
 	# 启动decoder
 	_start_decoder("rx_sig", ZMQ_ADDR_SIG, "signal")
 	_start_decoder("rx_inf", ZMQ_ADDR_INF, "jamming")
 
-	# 尝试ros获取阵营信息
-	try:
-		ros_node = WirelessRos2AdaptorNodeThreaded(
-			on_encrypt_level_change_callback=_on_ros_encrypt_level_change,
-			node_name="main_node",
-		)
-		ros_node.start()
-		_log(logging.INFO, "ROS2 main node started")
-		faction = _get_faction_with_timeout(ros_node, faction_timeout)
-		_log(logging.INFO, f"Got faction from ROS node: {faction}")
-		if faction == Faction.RED:
-			current_site = CurrentSite.RED
-			_log(logging.INFO, "Determined faction from ROS node: RED")
-		elif faction == Faction.BLUE:
-			current_site = CurrentSite.BLUE
-			_log(logging.INFO, "Determined faction from ROS node: BLUE")
-		else:
-			_log(logging.WARNING, f"Failed to determine faction from ROS node, got: {faction}")
-	except Exception as exc:
-		ros_node = None
-		_log(logging.ERROR, f"ROS2 main node unavailable: {exc}")
+	# 尝试ros获取阵营信息 失败则持续重试
+	if ros_node is None:
+		try:
+			ros_node = WirelessRos2AdaptorNodeThreaded(
+				on_encrypt_level_change_callback=_on_ros_encrypt_level_change,
+				node_name="main_node",
+			)
+			ros_node.start()
+			_log(logging.INFO, "ROS2 main node started")
+		except Exception as exc:
+			ros_node = None
+			_log(logging.ERROR, f"ROS2 main node unavailable: {exc}")
 
-	# ros获取阵营信息失败 尝试解干扰波获取阵营信息
-	if current_site is None:
-		_log(logging.INFO, "Attempting to determine faction from signal decoding...")
-		while True:
-			if _should_stop():
-				return
-			for site in (CurrentSite.RED, CurrentSite.BLUE):
-				if _should_stop():
-					return
-				probe_result = _probe_faction_site(site)
-				if probe_result is not None:
-					current_site = probe_result
-					break
-			if current_site is not None:
-				_log(logging.INFO, f"Determined faction from signal decoding: {current_site.name}")
-				break
-			time.sleep(0.5)
+	while current_site is None:
+		if _should_stop():
+			return
+		if ros_node is not None:
+			faction = _get_faction_with_timeout(ros_node, FACTION_QUERY_TIMEOUT)
+			_log(logging.INFO, f"Got faction from ROS node: {faction}")
+			if faction == Faction.RED:
+				current_site = CurrentSite.RED
+				_log(logging.INFO, "Determined faction from ROS node: RED")
+			elif faction == Faction.BLUE:
+				current_site = CurrentSite.BLUE
+				_log(logging.INFO, "Determined faction from ROS node: BLUE")
+			else:
+				_log(logging.WARNING, f"Failed to determine faction from ROS node, got: {faction}")
+		time.sleep(INTERVAL_FACTION_RETRY)
 
 	# 正式启动
 	inf_level = 1
@@ -622,27 +531,6 @@ def main(
 						else:
 							_start_process("rx_sig", main_device_map.get(name), current_site)
 
-				# 当干扰等级达到三级且 backup 空闲时，启动额外的 rs_sig_amplifier 接收通路
-				backup_owner = _backup_in_use_by()
-				if devices.device_backup and inf_level == 3 and backup_owner is None and not _process_alive("rs_sig_amplifier"):
-					if _start_process("rs_sig_amplifier", devices.device_backup, current_site):
-						_log(logging.INFO, f"Started rs_sig_amplifier on backup device: {devices.device_backup}")
-
-				# 未解出也未收到ROS指令时的自动切换逻辑
-				if not ros_level_applied:
-					with status_lock:
-						inf_wrapper = process_wrappers.get("rx_inf")
-						inf_last = last_decode_time.get("rx_inf", time.time())
-						inf_device = process_devices.get("rx_inf", devices.device_inf)
-					process = getattr(inf_wrapper, "process", None) if inf_wrapper is not None else None
-					if process is not None and process.is_alive():
-						if time.time() - inf_last >= inf_level_timeout:
-							stopped = _ensure_process_stopped("rx_inf")
-							if stopped:
-								inf_level = 1 if inf_level >= 2 else inf_level + 1
-								_start_process("rx_inf", inf_device, current_site, inf_level)
-								_log(logging.INFO, f"rx_inf switched to next level {inf_level} due to timeout")
-
 				#  最后检查一遍是否还是有设备未在运行 如果有则尝试重启
 				with status_lock:
 					rx_sig_wrapper = process_wrappers.get("rx_sig")
@@ -676,8 +564,6 @@ if __name__ == "__main__":
 
 	stop_event = threading.Event()
 	try:
-		args = build_arg_parser().parse_args()
-		apply_cli_args(args)
 		main(device_conf, stop_event=stop_event)
 	except KeyboardInterrupt:
 		stop_event.set()
