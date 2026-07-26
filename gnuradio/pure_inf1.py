@@ -27,13 +27,13 @@ from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio import iio
 from gnuradio import zeromq
-import no_interfere_epy_block_0_0 as epy_block_0_0  # embedded python block
+import pure_inf1_epy_block_0_0 as epy_block_0_0  # embedded python block
 import sip
 import threading
 
 
 
-class no_interfere(gr.top_block, Qt.QWidget):
+class pure_inf1(gr.top_block, Qt.QWidget):
 
     def __init__(self):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
@@ -56,7 +56,7 @@ class no_interfere(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "no_interfere")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "pure_inf1")
 
         try:
             geometry = self.settings.value("geometry")
@@ -326,9 +326,9 @@ class no_interfere(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 4096)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 32768)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
-        self.iio_pluto_source_0.set_frequency(fc)
+        self.iio_pluto_source_0.set_frequency(fc_1)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
         self.iio_pluto_source_0.set_gain_mode(0, 'slow_attack')
         self.iio_pluto_source_0.set_gain(0, 64)
@@ -336,15 +336,13 @@ class no_interfere(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 327680, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.4' if '192.168.2.4' else iio.get_pluto_uri(), [True, True], 3276800, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
-        self.iio_pluto_sink_0.set_frequency(fc)
+        self.iio_pluto_sink_0.set_frequency(fc_1)
         self.iio_pluto_sink_0.set_samplerate(samp_rate)
         self.iio_pluto_sink_0.set_attenuation(0, 0)
         self.iio_pluto_sink_0.set_filter_params('Auto', '', 0, 0)
-        self.fft_filter_xxx_1_0_0 = filter.fft_filter_ccc(1, taps_lpf_pre, 1)
-        self.fft_filter_xxx_1_0_0.declare_sample_delay(0)
         self.fft_filter_xxx_1_0 = filter.fft_filter_fff(1, taps_lpf, 1)
         self.fft_filter_xxx_1_0.declare_sample_delay(0)
         self.epy_block_0_0 = epy_block_0_0.blk()
@@ -362,7 +360,7 @@ class no_interfere(gr.top_block, Qt.QWidget):
             [])
         self.digital_gfsk_mod_0 = digital.gfsk_mod(
             samples_per_symbol=47,
-            sensitivity=sensitivity_signal,
+            sensitivity=sensitivity_inf_1,
             bt=0.35,
             verbose=False,
             log=False,
@@ -393,16 +391,15 @@ class no_interfere(gr.top_block, Qt.QWidget):
         self.connect((self.epy_block_0_0, 0), (self.qtgui_time_sink_x_0, 1))
         self.connect((self.fft_filter_xxx_1_0, 0), (self.digital_symbol_sync_xx_0, 0))
         self.connect((self.fft_filter_xxx_1_0, 0), (self.qtgui_time_sink_x_0_0_0_0, 0))
-        self.connect((self.fft_filter_xxx_1_0_0, 0), (self.analog_quadrature_demod_cf_0, 0))
-        self.connect((self.fft_filter_xxx_1_0_0, 0), (self.qtgui_freq_sink_x_0, 1))
+        self.connect((self.iio_pluto_source_0, 0), (self.analog_quadrature_demod_cf_0, 0))
         self.connect((self.iio_pluto_source_0, 0), (self.analog_quadrature_demod_cf_0_0, 0))
-        self.connect((self.iio_pluto_source_0, 0), (self.fft_filter_xxx_1_0_0, 0))
         self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
+        self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 1))
         self.connect((self.zeromq_sub_source_0, 0), (self.blocks_pack_k_bits_bb_0_0, 0))
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "no_interfere")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "pure_inf1")
         self.settings.setValue("geometry", self.saveGeometry())
         self.stop()
         self.wait()
@@ -429,7 +426,6 @@ class no_interfere(gr.top_block, Qt.QWidget):
 
     def set_taps_lpf_pre(self, taps_lpf_pre):
         self.taps_lpf_pre = taps_lpf_pre
-        self.fft_filter_xxx_1_0_0.set_taps(self.taps_lpf_pre)
 
     def get_taps_lpf(self):
         return self.taps_lpf
@@ -510,19 +506,19 @@ class no_interfere(gr.top_block, Qt.QWidget):
 
     def set_fc_1(self, fc_1):
         self.fc_1 = fc_1
+        self.iio_pluto_sink_0.set_frequency(self.fc_1)
+        self.iio_pluto_source_0.set_frequency(self.fc_1)
 
     def get_fc(self):
         return self.fc
 
     def set_fc(self, fc):
         self.fc = fc
-        self.iio_pluto_sink_0.set_frequency(self.fc)
-        self.iio_pluto_source_0.set_frequency(self.fc)
 
 
 
 
-def main(top_block_cls=no_interfere, options=None):
+def main(top_block_cls=pure_inf1, options=None):
 
     qapp = Qt.QApplication(sys.argv)
 

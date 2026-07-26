@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: qt_gui
     hier_block_src_path: '.:'
-    id: no_interfere
+    id: pure_inf2
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -335,7 +335,7 @@ blocks:
     maxoutbuf: '0'
     minoutbuf: '0'
     samples_per_symbol: '47'
-    sensitivity: sensitivity_signal
+    sensitivity: sensitivity_inf_2
     verbose: 'False'
   states:
     bus_sink: false
@@ -422,26 +422,6 @@ blocks:
     coordinate: [1872, 464.0]
     rotation: 0
     state: enabled
-- name: fft_filter_xxx_1_0_0
-  id: fft_filter_xxx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    decim: '1'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    nthreads: '1'
-    samp_delay: '0'
-    taps: taps_lpf_pre
-    type: ccc
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1232, 320.0]
-    rotation: 0
-    state: enabled
 - name: iio_pluto_sink_0
   id: iio_pluto_sink
   parameters:
@@ -449,18 +429,18 @@ blocks:
     alias: ''
     attenuation1: '0'
     bandwidth: signal_bandwidth
-    buffer_size: '327680'
+    buffer_size: '3276800'
     comment: ''
     cyclic: 'True'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc
+    frequency: fc_2
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.3
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false
@@ -475,12 +455,12 @@ blocks:
     alias: ''
     bandwidth: signal_bandwidth
     bbdc: 'True'
-    buffer_size: '4096'
+    buffer_size: '32768'
     comment: ''
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc
+    frequency: fc_2
     fstop: '0'
     gain1: '''slow_attack'''
     len_tag_key: packet_len
@@ -491,7 +471,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.3
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false
@@ -771,7 +751,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [608, 532.0]
+    coordinate: [608, 528.0]
     rotation: 0
     state: enabled
 - name: qtgui_time_sink_x_0_0_0_0
@@ -1030,11 +1010,10 @@ connections:
 - [epy_block_0_0, '0', qtgui_time_sink_x_0, '1']
 - [fft_filter_xxx_1_0, '0', digital_symbol_sync_xx_0, '0']
 - [fft_filter_xxx_1_0, '0', qtgui_time_sink_x_0_0_0_0, '0']
-- [fft_filter_xxx_1_0_0, '0', analog_quadrature_demod_cf_0, '0']
-- [fft_filter_xxx_1_0_0, '0', qtgui_freq_sink_x_0, '1']
+- [iio_pluto_source_0, '0', analog_quadrature_demod_cf_0, '0']
 - [iio_pluto_source_0, '0', analog_quadrature_demod_cf_0_0, '0']
-- [iio_pluto_source_0, '0', fft_filter_xxx_1_0_0, '0']
 - [iio_pluto_source_0, '0', qtgui_freq_sink_x_0, '0']
+- [iio_pluto_source_0, '0', qtgui_freq_sink_x_0, '1']
 - [zeromq_sub_source_0, '0', blocks_pack_k_bits_bb_0_0, '0']
 
 metadata:
