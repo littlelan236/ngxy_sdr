@@ -102,6 +102,8 @@ def build_frame_ota_signal(payload_dict, seq=0) -> np.ndarray[np.uint8]:
         if cmd_name == 'jamming': # 不对干扰波秘钥进行构建
             continue
         else:
+            # print(cmd_name)
+            # print(payload_dict[cmd_name])
             frame_serial = _build_frame_serial(cmd_name, payload_dict[cmd_name], seq)
             if buffer is None:
                 buffer = frame_serial

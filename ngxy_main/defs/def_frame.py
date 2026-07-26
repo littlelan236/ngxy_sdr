@@ -25,16 +25,6 @@ LEN_OTA_LENGTH = 2
 ACCESS_CORR_SIGNAL = 32
 ACCESS_CORR_JAMMING = 32
 
-CMD_OPTIONS = {
-    # name: (cmd_id, data_length)
-    "enemy_pos": (0x0A01, 24),
-    "enemy_hp": (0x0A02, 12),
-    "enemy_ammo": (0x0A03, 10),
-    "buff_state": (0x0A04, 8),
-    "gains": (0x0A05, 36),
-    "jamming": (0x0A06, 6),
-}
-
 # 定义payload格式
 SERIAL_FIELDS = {
     "enemy_pos": [
@@ -107,4 +97,18 @@ SERIAL_FIELDS = {
     "jamming": [
         ("key", 6),
     ],
+}
+
+_CMD_IDS = {
+    "enemy_pos": 0x0A01,
+    "enemy_hp": 0x0A02,
+    "enemy_ammo": 0x0A03,
+    "buff_state": 0x0A04,
+    "gains": 0x0A05,
+    "jamming": 0x0A06,
+}
+
+CMD_OPTIONS = {
+    name: (_CMD_IDS[name], sum(sz for _, sz in fields))
+    for name, fields in SERIAL_FIELDS.items()
 }

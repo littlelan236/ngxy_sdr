@@ -16,28 +16,28 @@ if __name__ == "__main__":
 
     def on_frame_decoded(data_dict_list):
         # logging.log(logging.INFO, f"解析成功: {data_dict_list}")
-        print(data_dict_list)
+        # print(data_dict_list)
         for data_dict in data_dict_list:
             status = dict_to_dataclass(data_dict)
             # logging.log(logging.INFO, f"解析结果: {status}")
             print(status)
 
 
-    server_tx = zmqServerTx(address="tcp://127.0.0.1:2234") # port 2234
-    # decoder = frame_decoder_zmq("signal", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2236", crc16_enabled=False) # port 2236
-    decoder = frame_decoder_zmq("key", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2236") # port 2236
+    server_tx = zmqServerTx(address="tcp://127.0.0.1:2244") # port 2234
+    decoder = frame_decoder_zmq("signal", on_frame_decoded=on_frame_decoded, zmq_address="tcp://127.0.0.1:2246", crc16_enabled=False) # port 2236
+    # decoder = frame_decoder_zmq("key", on_frame_decoded=on_frame_decoded, zmq_addressimport logging="tcp://127.0.0.1:2246") # port 2236
 
 
     # 生成空口帧的比特流
-    frames = build_frame_ota_jamming("SYUJON")
-    # frames = build_frame_ota_signal(_generate_payload_random())
+    # frames = build_frame_ota_jamming("SYUJON")
+    frames = build_frame_ota_signal(_generate_payload_random())
 
 
     while True:
         # key
-        server_tx.send_data(frames)
+        # server_tx.send_data(frames)
 
         # signal 每次发送后重新随机生成
-        # server_tx.send_data(frames)
+        server_tx.send_data(frames)
         # frames = build_frame_ota_signal(_generate_payload_random())
     

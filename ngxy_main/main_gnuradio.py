@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 为了避免潜在的串口通信问题，每次检验Queue中重复信息，重复信息直接丢弃
+# 避免import问题
+import sys
+from pathlib import Path
+
+CURRENT_DIR = Path(__file__).resolve().parent
+if str(CURRENT_DIR) not in sys.path:
+	sys.path.insert(0, str(CURRENT_DIR))
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+if str(WORKSPACE_ROOT) not in sys.path:
+	sys.path.insert(0, str(WORKSPACE_ROOT))
 
 # 选项
 RECORD_SIGNAL_ON = True
+import logging
+LOGGING_LVL = logging.INFO
 
 # 参数
 NUM_SAMPS = 4e4
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.02
 FACTION_QUERY_TIMEOUT = 5
-INTERVAL_FACTION_RETRY = 5
+INTERVAL_FACTION_RETRY = 1
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
 INTERVAL_IIO_INFO = 15
 TIMEOUT_JOIN = 2
@@ -32,10 +44,9 @@ class DeviceConfig:
 
 from ngxy_main.drivers.extract_usb import *
 device_conf = DeviceConfig(
-	device_sig=SERIAL_PLUTO_NANO_2,
+	device_sig=SERIAL_PLUTO_NANO_0,
 	device_inf=SERIAL_PLUTO_NANO_1,	
-	# device_inf=SERIAL_PLUTO_SDR,
-	device_backup=SERIAL_PLUTO_NANO_0,
+	device_backup=SERIAL_PLUTO_NANO_2,
 	device_sig_addr=None,
 	device_inf_addr=None,
 	device_backup_addr=None,
@@ -46,7 +57,6 @@ device_conf = DeviceConfig(
 # 避免反复尝试iio_info导致延迟过大
 last_get_iio_info_time = 0
 
-import sys
 # 强制处理 librtlsdr 的依赖冲突 (libusb 符号问题)
 if sys.platform == "linux":
     # 优先加载正确的 libusb 避免 undefined symbol: libusb_dev_mem_free
@@ -62,23 +72,11 @@ if sys.platform == "linux":
     except:
         pass
 
-
-from pathlib import Path
-
-CURRENT_DIR = Path(__file__).resolve().parent
-if str(CURRENT_DIR) not in sys.path:
-	sys.path.insert(0, str(CURRENT_DIR))
-
-WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
-if str(WORKSPACE_ROOT) not in sys.path:
-	sys.path.insert(0, str(WORKSPACE_ROOT))
-
 from enum import Enum
 import json
 import time
 import threading
 from queue import Queue, Empty
-import logging
 from ngxy_main.drivers.util import _log, _makesure_path_exist
 
 import rclpy
@@ -91,7 +89,7 @@ BW_3 /= 2
 from ngxy_main.defs.def_taps import *
 import ngxy_main.grc_main as grc_main
 from ngxy_main.drivers.frame_decoder_zmq import frame_decoder_zmq
-from wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
+from ngxy_main.drivers.wireless_ros2_adaptor import WirelessRos2AdaptorNodeThreaded, Faction
 
 grc_main.VISUALIZE_ON = False
 
@@ -306,6 +304,8 @@ def main(
 				return
 			for data_dict in data_dict_list:
 				ros_publish_queue.put(data_dict)
+			# debug
+			print(data_dict)
 
 		return _on_frame_decoded
 
@@ -354,6 +354,7 @@ def main(
 				taps_pre,
 				filename,
 				NUM_SAMPS,
+				SPS,
 			)
 			try:
 				wrapper.start()
@@ -411,6 +412,9 @@ def main(
 			ros_node = None
 			_log(logging.ERROR, f"ROS2 main node unavailable: {exc}")
 
+	current_site: CurrentSite | None = None
+	# debug
+	current_site = CurrentSite.RED
 	while current_site is None:
 		if _should_stop():
 			return
@@ -534,7 +538,7 @@ def main(
 if __name__ == "__main__":
 	filename = f"logs/main_rx_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 	filepath = _makesure_path_exist(filename)
-	logging.basicConfig(format='[%(asctime)s] %(message)s', level=logging.INFO, filename=filepath, filemode='w')
+	logging.basicConfig(format='[%(asctime)s] %(message)s', level=LOGGING_LVL, filename=filepath, filemode='w')
 
 	stop_event = threading.Event()
 	try:
