@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: qt_gui
     hier_block_src_path: '.:'
-    id: no_interfere
+    id: pure_inf2
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -335,7 +335,7 @@ blocks:
     maxoutbuf: '0'
     minoutbuf: '0'
     samples_per_symbol: '47'
-    sensitivity: sensitivity_signal
+    sensitivity: sensitivity_inf_2
     verbose: 'False'
   states:
     bus_sink: false
@@ -429,23 +429,23 @@ blocks:
     alias: ''
     attenuation1: '0'
     bandwidth: signal_bandwidth
-    buffer_size: '327680'
+    buffer_size: '3276800'
     comment: ''
     cyclic: 'True'
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc
+    frequency: fc_2
     fstop: '0'
     len_tag_key: ''
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.3
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [656, 284.0]
+    coordinate: [664, 288.0]
     rotation: 0
     state: enabled
 - name: iio_pluto_source_0
@@ -455,12 +455,12 @@ blocks:
     alias: ''
     bandwidth: signal_bandwidth
     bbdc: 'True'
-    buffer_size: '4096'
+    buffer_size: '32768'
     comment: ''
     filter: ''
     filter_source: '''Auto'''
     fpass: '0'
-    frequency: fc
+    frequency: fc_2
     fstop: '0'
     gain1: '''slow_attack'''
     len_tag_key: packet_len
@@ -471,7 +471,7 @@ blocks:
     rfdc: 'True'
     samplerate: samp_rate
     type: fc32
-    uri: 192.168.2.3
+    uri: 192.168.2.4
   states:
     bus_sink: false
     bus_source: false
@@ -751,7 +751,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [608, 532.0]
+    coordinate: [608, 528.0]
     rotation: 0
     state: enabled
 - name: qtgui_time_sink_x_0_0_0_0
@@ -951,7 +951,7 @@ blocks:
 - name: zeromq_pub_sink_0_0
   id: zeromq_pub_sink
   parameters:
-    address: tcp://127.0.0.1:2246
+    address: tcp://127.0.0.1:2236
     affinity: ''
     alias: ''
     bind: 'True'
@@ -973,7 +973,7 @@ blocks:
 - name: zeromq_sub_source_0
   id: zeromq_sub_source
   parameters:
-    address: tcp://127.0.0.1:2244
+    address: tcp://127.0.0.1:2234
     affinity: ''
     alias: ''
     bind: 'False'
