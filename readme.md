@@ -1,6 +1,10 @@
-项目架构总览
+# 项目架构总览
+
 这是一个 RoboMaster 2026 赛季的无线通信子系统，用于通过 SDR 硬件（PlutoSDR / RTL-SDR）进行空口信号的收发和解析，最终通过 ROS2 将敌方机器人信息广播出去。
-目录结构
+
+## 目录结构
+
+```
 ngxy_sdr/
 ├── ngxy_main/                    # 主项目代码
 │   ├── main_gnuradio.py          # 主控入口（生产环境）
@@ -29,7 +33,11 @@ ngxy_sdr/
 │   ├── max_ros2_publish_gap.py   # 日志分析工具
 │   └── slice_gr_complex_head.py  # IQ文件切片工具
 └── rec/                          # IQ 录制文件存储
-数据流架构
+```
+
+## 数据流架构
+
+```
                         【接收链路】
 PlutoSDR → GRC流图(IIO Source → 预滤波 → FM解调 → 低通滤波 → 符号同步 → 硬判决 → pack_bits)
     → ZMQ PUB (tcp://127.0.0.1:2236/2235)
@@ -43,12 +51,15 @@ main_gnuradio / transmit_test_pluto.py
     → frame_coder (payload dict → 串口帧编码 → 空口帧封装 → 比特流)
         → zmq_server.zmqServerTx (PUB)
             → (外部 GNURadio TX 流图 SUB 接收并发射)
-核心设计
-1. 多进程隔离：每个 SDR 板子（信号接收 rx_sig、干扰接收 rx_inf、备用 backup）各跑一个独立的 multiprocessing.Process，内含完整 GRC 流图，通过 ZMQ 与主进程通信，避免 GRC 的阻塞式 run() 影响主控。
-2. 双通路通信：
-- 信息波（signal）：载频 433.2/433.92 MHz，传输敌方位置、血量、弹药、Buff 等结构化数据
-- 干扰波（jamming）：传输密码/密钥（6字节 key），用于干扰对方通信
-3. 帧协议：两层结构 —— 空口帧（8字节 access code + 长度 + payload）内嵌串口帧（SOF + CRC8帧头 + cmd_id + data + CRC16）。
-4. 阵营识别：先从 ROS 获取己方红/蓝阵营，失败则通过分别在红蓝频率上短暂接收解码来探测。
-5. 干扰等级自动切换：3 级干扰对应不同载频和带宽，ROS 可实时下发切换指令，也支持超时自动升级。
-6. 设备容灾：3 块 PlutoSDR（sig/inf/backup），主设备故障自动切换到备用板，记录错误次数。
+```
+
+## 核心设计
+
+1. **多进程隔离**：每个 SDR 板子（信号接收 rx_sig、干扰接收 rx_inf、备用 backup）各跑一个独立的 `multiprocessing.Process`，内含完整 GRC 流图，通过 ZMQ 与主进程通信，避免 GRC 的阻塞式 `run()` 影响主控。
+2. **双通路通信**：
+   - 信息波（signal）：载频 433.2/433.92 MHz，传输敌方位置、血量、弹药、Buff 等结构化数据
+   - 干扰波（jamming）：传输密码/密钥（6字节 key），用于干扰对方通信
+3. **帧协议**：两层结构 —— 空口帧（8字节 access code + 长度 + payload）内嵌串口帧（SOF + CRC8帧头 + cmd_id + data + CRC16）。
+4. **阵营识别**：先从 ROS 获取己方红/蓝阵营，失败则通过分别在红蓝频率上短暂接收解码来探测。
+5. **干扰等级自动切换**：3 级干扰对应不同载频和带宽，ROS 可实时下发切换指令，也支持超时自动升级。
+6. **设备容灾**：3 块 PlutoSDR（sig/inf/backup），主设备故障自动切换到备用板，记录错误次数。
