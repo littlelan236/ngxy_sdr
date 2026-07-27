@@ -61,3 +61,15 @@ reboot
 
 报 Unable to create buffer: -16：
 看看是不是pluto sink/source用了重复的ip 如两个sink填了重复的ip
+
+#  buffer问题
+
+> UUUfmcomms2_source :warning: Unable to refill buffer: Connection timed out (110)
+
+tx收到zmq传来的信息 但Rx全部是0
+
+成因暂时未知 重启能解决 连续使用时间过长可能会出现
+
+> 出现莫名其妙的crc16 failed 可能是全部failed 可能是几中status正常集中status错误
+
+- 可能是tx buffer设置过小 导致数据包被截断 推荐tx3276800

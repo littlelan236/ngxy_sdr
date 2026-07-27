@@ -9,23 +9,40 @@
 # Author: wangt
 # GNU Radio version: 3.10.12.0
 
-from gnuradio import analog
 import math
-from gnuradio import blocks
-from gnuradio import digital
-from gnuradio import filter
-from gnuradio import gr
-import sys
-import signal
-from gnuradio import iio
-from gnuradio import zeromq
-import grc_hard_decision_block as epy_block_0_0  # embedded python block
 import multiprocessing
 import threading
 import logging
 import os
 import re
 import select
+import signal
+import sys
+from pathlib import Path
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+_removed_sys_path_entries: list[str] = []
+for _sys_path_entry in list(sys.path):
+    try:
+        resolved_entry = Path(_sys_path_entry or os.curdir).resolve()
+    except Exception:
+        continue
+    if resolved_entry == WORKSPACE_ROOT:
+        sys.path.remove(_sys_path_entry)
+        _removed_sys_path_entries.append(_sys_path_entry)
+
+from gnuradio import analog
+from gnuradio import blocks
+from gnuradio import digital
+from gnuradio import filter
+from gnuradio import gr
+from gnuradio import iio
+from gnuradio import zeromq
+
+for _sys_path_entry in reversed(_removed_sys_path_entries):
+    sys.path.insert(0, _sys_path_entry)
+
+import grc_hard_decision_block as epy_block_0_0  # embedded python block
 from ngxy_main.drivers.util import _log, _makesure_path_exist
 
 class grc_main_block(gr.top_block):
@@ -41,6 +58,7 @@ class grc_main_block(gr.top_block):
                 taps_pre,
                 filename,
                 num_samps,
+                sps,
                 ):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=False)
         self.flowgraph_started = threading.Event()
@@ -55,6 +73,7 @@ class grc_main_block(gr.top_block):
         self.fc = fc
         self.zmq_addr = zmq_addr
         self.pluto_addr = pluto_addr
+        self.sps = sps
 
         ##################################################
         # Blocks
@@ -78,7 +97,7 @@ class grc_main_block(gr.top_block):
         self.epy_block_0_0 = epy_block_0_0.blk()
         self.digital_symbol_sync_xx_0 = digital.symbol_sync_ff(
             digital.TED_MUELLER_AND_MULLER,
-            52,
+            sps,
             0.045,
             1.0,
             1.0,
@@ -160,9 +179,10 @@ class top():
           taps_pre,
           filename,
           num_samps,
+          sps,
     ):
         try:
-            self.tb = grc_main_block(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps)
+            self.tb = grc_main_block(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps, sps)
             def sig_handler(sig=None, frame=None):
                 self.tb.stop()
                 self.tb.wait()
@@ -187,8 +207,8 @@ class top():
             _log(logging.ERROR, f"[GnuradioClass] error stopping gnuradio flowgraph: {e}")
 
 
-def _region_games_process_worker(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps, stop_event):
-    worker_top = top(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps)
+def _region_games_process_worker(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, sps, filename, num_samps, stop_event):
+    worker_top = top(zmq_send_addr, pluto_addr, fc, bandwidth, taps_lpf, taps_pre, filename, num_samps, sps)
     if not hasattr(worker_top, "tb"):
         return
 
@@ -273,6 +293,7 @@ class top_thread_wrapper():
           taps_pre,
           filename,
           num_samps,
+          sps,
     ):
         self.zmq_send_addr = zmq_send_addr
         self.pluto_addr = pluto_addr
@@ -282,6 +303,7 @@ class top_thread_wrapper():
         self.taps_pre = taps_pre
         self.filename = filename
         self.num_samps = num_samps
+        self.sps = sps
         self.thread = None
         self.process = None
         self.top = None
@@ -294,7 +316,7 @@ class top_thread_wrapper():
         self._stop_event = multiprocessing.Event()
         self.process = multiprocessing.Process(
             target=_region_games_process_worker,
-            args=(self.zmq_send_addr, self.pluto_addr, self.fc, self.bandwidth, self.taps_lpf, self.taps_pre, self.filename, self.num_samps, self._stop_event),
+            args=(self.zmq_send_addr, self.pluto_addr, self.fc, self.bandwidth, self.taps_lpf, self.taps_pre, self.sps, self.filename, self.num_samps, self._stop_event),
         )
         self.thread = self.process
         self.process.start()

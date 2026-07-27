@@ -387,7 +387,7 @@ blocks:
     log: 'False'
     maxoutbuf: '0'
     minoutbuf: '0'
-    samples_per_symbol: '52'
+    samples_per_symbol: '47'
     sensitivity: sensitivity_signal
     verbose: 'False'
   states:

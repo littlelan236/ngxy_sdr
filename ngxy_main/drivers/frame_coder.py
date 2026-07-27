@@ -5,7 +5,8 @@ from ngxy_main.drivers.crc import append_crc8_check_sum, append_crc16_check_sum,
 from ngxy_main.drivers.util import print_hex_by_byte, _reverse_string
 from ngxy_main.defs.def_frame import (CMD_OPTIONS, SERIAL_FIELDS, SOF, ACCESS_CODE_SIGNAL, ACCESS_CODE_JAMMING,
                        LEN_OTA_PAYLOAD, ENDIAN, ENDIAN_DATA, ENDIAN_OTA,
-                       LEN_SOF, LEN_CMD_ID, LEN_DATA_LENGTH, LEN_SEQ, LEN_ACCESS, LEN_OTA_LENGTH)
+                       LEN_SOF, LEN_CMD_ID, LEN_DATA_LENGTH, LEN_SEQ, LEN_ACCESS, LEN_OTA_LENGTH,
+                       EnemyPosData, EnemyHpData, EnemyAmmoData, BuffStateData, GainsData, JammingData, AllFramesData)
 
 def _generate_payload_random():
     """生成字典形式的payload {cmd_name:{xx:xx}} 数据为随机值"""
@@ -99,9 +100,14 @@ def build_frame_ota_signal(payload_dict, seq=0) -> np.ndarray[np.uint8]:
     """
     buffer = None
     for cmd_name in payload_dict:
+        # debug
+        # if cmd_name != 'gains':
+        #     continue
         if cmd_name == 'jamming': # 不对干扰波秘钥进行构建
             continue
         else:
+            # print(cmd_name)
+            # print(payload_dict[cmd_name])
             frame_serial = _build_frame_serial(cmd_name, payload_dict[cmd_name], seq)
             if buffer is None:
                 buffer = frame_serial
@@ -142,6 +148,50 @@ def build_frame_ota_jamming(key:str, num_bytes_fill=200, seq=0) -> np.ndarray[np
     for c in chunks:
         ota_frames.append(_build_frame_ota(ACCESS_CODE_JAMMING, c))
     return _ota_frames_to_bitstream(ota_frames)
+
+
+def build_frame_ota_by_cmd(cmd_name: str, *, seq: int = 0, num_bytes_fill: int = 0, **fields) -> np.ndarray[np.uint8]:
+    protocol_fields = SERIAL_FIELDS.get(cmd_name)
+    if not protocol_fields:
+        raise ValueError(f"Unknown cmd_name: {cmd_name}, valid: {list(SERIAL_FIELDS.keys())}")
+
+    payload = {}
+    for field_name, _ in protocol_fields:
+        payload[field_name] = fields.get(field_name, 0)
+
+    frame_serial = _build_frame_serial(cmd_name, payload, seq)
+
+    if cmd_name == "jamming":
+        if num_bytes_fill > 0:
+            buffer = frame_serial + random.randbytes(num_bytes_fill)
+        else:
+            buffer = frame_serial
+        access_code = ACCESS_CODE_JAMMING
+    else:
+        buffer = frame_serial
+        access_code = ACCESS_CODE_SIGNAL
+
+    r = len(buffer) % LEN_OTA_PAYLOAD
+    len_append = LEN_OTA_PAYLOAD - r
+    buffer += random.randbytes(len_append)
+
+    chunks = [buffer[i:i+LEN_OTA_PAYLOAD] for i in range(0, len(buffer), LEN_OTA_PAYLOAD)]
+    ota_frames = []
+    for c in chunks:
+        ota_frames.append(_build_frame_ota(access_code, c))
+    return _ota_frames_to_bitstream(ota_frames)
+
+
+def build_frame_ota_from_dataclass(data, *, mode: str = "signal", seq: int = 0, num_bytes_fill: int = 200) -> np.ndarray[np.uint8]:
+    if mode == "signal":
+        payload_dict = {}
+        for cmd_name in ["enemy_pos", "enemy_hp", "enemy_ammo", "buff_state", "gains"]:
+            payload_dict[cmd_name] = vars(getattr(data, cmd_name, None) or {})
+        return build_frame_ota_signal(payload_dict, seq)
+    elif mode == "jamming":
+        return build_frame_ota_jamming(data.jamming.key, num_bytes_fill, seq)
+    else:
+        raise ValueError(f"Unknown mode: {mode}, valid: ['signal', 'jamming']")
 
 
 # 测试代码
