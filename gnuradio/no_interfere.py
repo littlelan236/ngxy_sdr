@@ -9,24 +9,40 @@
 # Author: wangt
 # GNU Radio version: 3.10.12.0
 
+import sys
+import os
+import signal
+from pathlib import Path
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+_removed = []
+for _e in list(sys.path):
+    try:
+        if Path(_e or os.curdir).resolve() == WORKSPACE_ROOT:
+            sys.path.remove(_e)
+            _removed.append(_e)
+    except Exception:
+        continue
+
+import math
+from argparse import ArgumentParser
 from PyQt5 import Qt
 from gnuradio import qtgui
 from gnuradio import analog
-import math
 from gnuradio import blocks
 from gnuradio import digital
 from gnuradio import filter
 from gnuradio.filter import firdes
 from gnuradio import gr
 from gnuradio.fft import window
-import sys
-import signal
-from PyQt5 import Qt
-from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio import iio
 from gnuradio import zeromq
+
+for _e in reversed(_removed):
+    sys.path.insert(0, _e)
+
 import no_interfere_epy_block_0_0 as epy_block_0_0  # embedded python block
 import sip
 import threading
@@ -35,8 +51,10 @@ import threading
 
 class no_interfere(gr.top_block, Qt.QWidget):
 
-    def __init__(self):
+    def __init__(self, pluto_uri=None, tx_fc=None):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
+        if pluto_uri is None:
+            pluto_uri = '192.168.2.3'
         Qt.QWidget.__init__(self)
         self.setWindowTitle("Not titled yet")
         qtgui.util.check_set_qss()
@@ -326,7 +344,7 @@ class no_interfere(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 4096)
+        self.iio_pluto_source_0 = iio.fmcomms2_source_fc32(pluto_uri, [True, True], 4096)
         self.iio_pluto_source_0.set_len_tag_key('packet_len')
         self.iio_pluto_source_0.set_frequency(fc)
         self.iio_pluto_source_0.set_samplerate(samp_rate)
@@ -336,7 +354,7 @@ class no_interfere(gr.top_block, Qt.QWidget):
         self.iio_pluto_source_0.set_rfdc(True)
         self.iio_pluto_source_0.set_bbdc(True)
         self.iio_pluto_source_0.set_filter_params('Auto', '', 0, 0)
-        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32('192.168.2.3' if '192.168.2.3' else iio.get_pluto_uri(), [True, True], 327680, True)
+        self.iio_pluto_sink_0 = iio.fmcomms2_sink_fc32(pluto_uri, [True, True], 327680, True)
         self.iio_pluto_sink_0.set_len_tag_key('')
         self.iio_pluto_sink_0.set_bandwidth(signal_bandwidth)
         self.iio_pluto_sink_0.set_frequency(fc)
@@ -396,6 +414,9 @@ class no_interfere(gr.top_block, Qt.QWidget):
         self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
         self.connect((self.iio_pluto_source_0, 0), (self.qtgui_freq_sink_x_0, 1))
         self.connect((self.zeromq_sub_source_0, 0), (self.blocks_pack_k_bits_bb_0_0, 0))
+
+        if tx_fc is not None:
+            self.set_fc(tx_fc)
 
 
     def closeEvent(self, event):
@@ -522,7 +543,9 @@ def main(top_block_cls=no_interfere, options=None):
 
     qapp = Qt.QApplication(sys.argv)
 
-    tb = top_block_cls()
+    pluto_uri = sys.argv[1] if len(sys.argv) > 1 else None
+    tx_fc = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    tb = top_block_cls(pluto_uri=pluto_uri, tx_fc=tx_fc)
 
     tb.start()
     tb.flowgraph_started.set()

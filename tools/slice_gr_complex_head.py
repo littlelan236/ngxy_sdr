@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """IQ文件切片工具"""
 
+# how to use
+# 跳过前 5000 个采样，再取 10000 个
+# python /home/ubuntu/radar2026/radio26/tools/slice_gr_complex_head.py /home/ubuntu/Desktop/RecsAndLogs/6-RPS/wireless_raw/rx_sig_433920000.0_2026-05-24_21-33-45.iq rec/trimmed.iq 2000000 --offset 100000
+
 from __future__ import annotations
 
 import argparse
@@ -40,6 +44,7 @@ def main() -> int:
     start_bytes = args.offset * BYTES_PER_COMPLEX64
     head_bytes = args.samples * BYTES_PER_COMPLEX64
 
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.input.open("rb") as f_in, args.output.open("wb") as f_out:
         f_in.seek(start_bytes)
         f_out.write(f_in.read(head_bytes))

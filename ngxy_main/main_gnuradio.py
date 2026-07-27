@@ -14,14 +14,15 @@ if str(WORKSPACE_ROOT) not in sys.path:
 	sys.path.insert(0, str(WORKSPACE_ROOT))
 
 # 选项
-RECORD_SIGNAL_ON = True
+RECORD_SIGNAL_ON = False
 import logging
-LOGGING_LVL = logging.INFO
+LOGGING_LVL = logging.DEBUG
 
 # 参数
 NUM_SAMPS = 4e4
 TIMEOUT_DEVICE_SEARCH = 15
 INTERVAL_MAIN_CYCLE = 0.02
+
 FACTION_QUERY_TIMEOUT = 5
 INTERVAL_FACTION_RETRY = 1
 INTERVAL_MAIN_CYCLE_DEVICE_CTRL = 12
@@ -305,7 +306,7 @@ def main(
 			for data_dict in data_dict_list:
 				ros_publish_queue.put(data_dict)
 			# debug
-			print(data_dict)
+			# print(data_dict)
 
 		return _on_frame_decoded
 
@@ -413,8 +414,6 @@ def main(
 			_log(logging.ERROR, f"ROS2 main node unavailable: {exc}")
 
 	current_site: CurrentSite | None = None
-	# debug
-	current_site = CurrentSite.RED
 	while current_site is None:
 		if _should_stop():
 			return

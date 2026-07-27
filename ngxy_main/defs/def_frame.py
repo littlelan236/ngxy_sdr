@@ -112,3 +112,29 @@ CMD_OPTIONS = {
     name: (_CMD_IDS[name], sum(sz for _, sz in fields))
     for name, fields in SERIAL_FIELDS.items()
 }
+
+from dataclasses import make_dataclass, field as dc_field
+
+_CMD_CLASS_NAMES = {
+    "enemy_pos": "EnemyPosData",
+    "enemy_hp": "EnemyHpData",
+    "enemy_ammo": "EnemyAmmoData",
+    "buff_state": "BuffStateData",
+    "gains": "GainsData",
+    "jamming": "JammingData",
+}
+
+for cmd_name, field_defs in SERIAL_FIELDS.items():
+    class_name = _CMD_CLASS_NAMES[cmd_name]
+    dc_fields = []
+    for fname, fsize in field_defs:
+        if fname == "key":
+            dc_fields.append((fname, str, dc_field(default="")))
+        else:
+            dc_fields.append((fname, int, dc_field(default=0)))
+    globals()[class_name] = make_dataclass(class_name, dc_fields)
+
+AllFramesData = make_dataclass("AllFramesData", [
+    (cmd_name, globals()[_CMD_CLASS_NAMES[cmd_name]], dc_field(default_factory=globals()[_CMD_CLASS_NAMES[cmd_name]]))
+    for cmd_name in SERIAL_FIELDS
+])
