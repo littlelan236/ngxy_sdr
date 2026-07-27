@@ -2,8 +2,10 @@
 """IQ文件切片工具"""
 
 # how to use
+# 查看文件样本数
+# python tools/slice_gr_complex_head.py input.iq --info
 # 跳过前 5000 个采样，再取 10000 个
-# python /home/ubuntu/radar2026/radio26/tools/slice_gr_complex_head.py /home/ubuntu/Desktop/RecsAndLogs/6-RPS/wireless_raw/rx_sig_433920000.0_2026-05-24_21-33-45.iq rec/trimmed.iq 2000000 --offset 100000
+# python tools/slice_gr_complex_head.py input.iq output.iq 10000 --offset 5000
 
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ def parse_args() -> argparse.Namespace:
         description="Slice the first N complex64 samples from a binary IQ file."
     )
     parser.add_argument("input", type=Path, help="Input IQ binary file path")
-    parser.add_argument("output", type=Path, help="Output sliced file path")
+    parser.add_argument("output", type=Path, nargs="?", default=None, help="Output sliced file path")
     parser.add_argument(
         "--offset",
         type=int,
@@ -26,8 +28,15 @@ def parse_args() -> argparse.Namespace:
         help="Start position in complex samples (default: 0)",
     )
     parser.add_argument(
+        "--info",
+        action="store_true",
+        help="Print sample count and exit (no slicing)",
+    )
+    parser.add_argument(
         "samples",
         type=int,
+        nargs="?",
+        default=None,
         help="Number of complex samples to keep",
     )
     return parser.parse_args()
@@ -36,6 +45,23 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
+    if not args.input.exists():
+        raise SystemExit(f"File not found: {args.input}")
+
+    file_size = args.input.stat().st_size
+    total_samples = file_size // BYTES_PER_COMPLEX64
+    remainder = file_size % BYTES_PER_COMPLEX64
+
+    if args.info:
+        print(f"File: {args.input}")
+        print(f"Size: {file_size} bytes")
+        print(f"Samples: {total_samples} (complex64)")
+        if remainder:
+            print(f"Warning: {remainder} extra bytes (not a multiple of {BYTES_PER_COMPLEX64})")
+        return 0
+
+    if args.output is None or args.samples is None:
+        raise SystemExit("output and samples are required unless --info is used")
     if args.samples <= 0:
         raise SystemExit("samples must be > 0")
     if args.offset < 0:
